@@ -140,14 +140,23 @@ class PdfService {
 
         // Completăm câmpurile - produs și garanție combinate în product_X
         // Produs 1
+        // Produs 1 - nume în product_1, garanție în warranty_1
         const product1Field = findField('product_1');
         if (product1Field) {
             if (products?.[0]?.name) {
                 const productName = formatProductName(products[0].name);
-                const warranty = products[0].warrantyMonths || defaultWarranty;
-                setFieldText(product1Field, `1. (${warranty} luni) ${productName}`, productFontSize);
+                setFieldText(product1Field, `1. ${productName}`, productFontSize);
             } else {
                 setFieldText(product1Field, '', productFontSize);
+            }
+        }
+        const warranty1Field = findField('warranty_1');
+        if (warranty1Field) {
+            if (products?.[0]?.name) {
+                const warranty = products[0].warrantyMonths || defaultWarranty;
+                setFieldText(warranty1Field, `garantie (luni): ${warranty}`, productFontSize);
+            } else {
+                setFieldText(warranty1Field, '', productFontSize);
             }
         }
 
@@ -156,10 +165,18 @@ class PdfService {
         if (product2Field) {
             if (products?.[1]?.name) {
                 const productName = formatProductName(products[1].name);
-                const warranty = products[1].warrantyMonths || defaultWarranty;
-                setFieldText(product2Field, `2. (${warranty} luni) ${productName}`, productFontSize);
+                setFieldText(product2Field, `2. ${productName}`, productFontSize);
             } else {
                 setFieldText(product2Field, '', productFontSize);
+            }
+        }
+        const warranty2Field = findField('warranty_2');
+        if (warranty2Field) {
+            if (products?.[1]?.name) {
+                const warranty = products[1].warrantyMonths || defaultWarranty;
+                setFieldText(warranty2Field, `garantie (luni): ${warranty}`, productFontSize);
+            } else {
+                setFieldText(warranty2Field, '', productFontSize);
             }
         }
 
@@ -168,10 +185,18 @@ class PdfService {
         if (product3Field) {
             if (products?.[2]?.name) {
                 const productName = formatProductName(products[2].name);
-                const warranty = products[2].warrantyMonths || defaultWarranty;
-                setFieldText(product3Field, `3. (${warranty} luni) ${productName}`, productFontSize);
+                setFieldText(product3Field, `3. ${productName}`, productFontSize);
             } else {
                 setFieldText(product3Field, '', productFontSize);
+            }
+        }
+        const warranty3Field = findField('warranty_3');
+        if (warranty3Field) {
+            if (products?.[2]?.name) {
+                const warranty = products[2].warrantyMonths || defaultWarranty;
+                setFieldText(warranty3Field, `garantie (luni): ${warranty}`, productFontSize);
+            } else {
+                setFieldText(warranty3Field, '', productFontSize);
             }
         }
 
