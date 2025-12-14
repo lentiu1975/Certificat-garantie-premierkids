@@ -59,9 +59,9 @@
     <div class="card-body">
         <div class="row g-3 mb-4">
             <div class="col-md-3">
-                <div class="border rounded p-3 text-center">
-                    <h3 class="mb-0" id="statTotal">0</h3>
-                    <small class="text-muted">Facturi Procesate</small>
+                <div class="border rounded p-3 text-center bg-primary bg-opacity-10">
+                    <h3 class="mb-0 text-primary" id="statTotal">0</h3>
+                    <small class="text-muted">Facturi Găsite</small>
                 </div>
             </div>
             <div class="col-md-3">
@@ -71,17 +71,24 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="border rounded p-3 text-center">
+                <div class="border rounded p-3 text-center bg-warning bg-opacity-10">
                     <h3 class="mb-0 text-warning" id="statSkipped">0</h3>
-                    <small class="text-muted">Sărite (fără produse active)</small>
+                    <small class="text-muted">Fără Produse Premier</small>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="border rounded p-3 text-center">
+                <div class="border rounded p-3 text-center bg-info bg-opacity-10">
                     <h3 class="mb-0 text-info" id="statEmag">0</h3>
                     <small class="text-muted">Încărcate în eMAG</small>
                 </div>
             </div>
+        </div>
+        <!-- Info despre căutare -->
+        <div class="alert alert-light mb-4" id="searchInfoAlert" style="display: none;">
+            <small>
+                <i class="bi bi-info-circle me-1"></i>
+                <span id="searchInfo"></span>
+            </small>
         </div>
 
         <!-- Lista Certificate Generate -->
@@ -162,13 +169,6 @@ async function startProcessing() {
 
         if (response.ok) {
             showResults(data);
-
-            // Actualizăm ultima factură procesată în UI
-            const lastProcessedInput = document.getElementById('lastProcessed');
-            const lastCert = data.certificates?.[data.certificates.length - 1];
-            if (lastCert) {
-                lastProcessedInput.value = lastCert.invoiceNumber;
-            }
         } else {
             showAlert(data.error || 'Eroare la procesare', 'danger');
         }
@@ -184,13 +184,54 @@ async function startProcessing() {
 function showResults(data) {
     document.getElementById('resultsCard').style.display = 'block';
 
-    // Statistici
-    document.getElementById('statTotal').textContent = data.processed || 0;
-    document.getElementById('statGenerated').textContent = data.generated || 0;
-    document.getElementById('statSkipped').textContent = data.skipped || 0;
+    // Statistici - calculăm din datele reale
+    const certs = data.certificates || [];
+    const certificatesCount = certs.length;
+
+    // Calculăm facturile găsite din intervalul real
+    // Prima factură = startedFrom + 1, ultima = ultimul certificat generat
+    let totalFound = certificatesCount;
+    if (certs.length > 0 && data.startedFrom) {
+        // Extragem numerele din identificatori (ex: PK202124588 -> 24588)
+        const startNum = parseInt(data.startedFrom.replace(/\D/g, '').slice(-5));
+        const lastCertNum = parseInt(certs[certs.length - 1].invoiceNumber.replace(/\D/g, '').slice(-5));
+        // Facturi găsite = de la startNum+1 până la lastCertNum (inclusiv)
+        totalFound = lastCertNum - startNum;
+    }
+
+    const skippedCount = totalFound - certificatesCount;
+
+    document.getElementById('statTotal').textContent = totalFound;
+    document.getElementById('statGenerated').textContent = certificatesCount;
+    document.getElementById('statSkipped').textContent = skippedCount;
 
     const emagUploaded = (data.certificates || []).filter(c => c.emagUploaded).length;
     document.getElementById('statEmag').textContent = emagUploaded;
+
+    // Actualizăm ultima factură procesată - luăm ultimul certificat generat
+    if (certs.length > 0) {
+        const lastCert = certs[certs.length - 1];
+        document.getElementById('lastProcessed').value = lastCert.invoiceNumber;
+        // Salvăm și în backend
+        fetch('/api/certificates/last-processed', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber: lastCert.invoiceNumber })
+        });
+    }
+
+    // Log pentru debugging
+    console.log('Procesare:', data.startedFrom, '->', data.lastProcessedInvoice);
+    console.log('Range căutat:', data.searchedRange);
+    console.log('Negăsite (404):', data.notFound);
+
+    // Afișăm info despre căutare
+    if (data.searchedRange) {
+        document.getElementById('searchInfoAlert').style.display = 'block';
+        document.getElementById('searchInfo').textContent =
+            'Căutat în intervalul ' + data.searchedRange +
+            (data.notFound > 0 ? ' (' + data.notFound + ' facturi inexistente)' : '');
+    }
 
     // Lista certificate
     generatedCertificates = data.certificates || [];

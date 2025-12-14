@@ -217,7 +217,21 @@ class SmartBillService {
             if (!pdfHeader.startsWith('%PDF')) {
                 const textContent = buffer.toString('utf8');
                 console.error('[SmartBill] Răspuns invalid (nu este PDF):', textContent.substring(0, 500));
+
+                // Verificăm dacă e mesaj de eroare de la SmartBill (factură inexistentă)
+                if (textContent.includes('nu a fost') || textContent.includes('not found') ||
+                    textContent.includes('inexistent') || textContent.includes('Nu exista') ||
+                    textContent.includes('eroare') || buffer.length < 1000) {
+                    throw new Error(`SmartBill PDF Error: 404 - Factura nu a fost găsită`);
+                }
+
                 throw new Error(`SmartBill nu a returnat un PDF valid. Răspuns: ${textContent.substring(0, 200)}`);
+            }
+
+            // Verificăm și dimensiunea - un PDF valid de factură are minim câteva KB
+            if (buffer.length < 5000) {
+                console.error(`[SmartBill] PDF prea mic (${buffer.length} bytes) - posibil factură inexistentă`);
+                throw new Error(`SmartBill PDF Error: 404 - PDF invalid sau factură inexistentă`);
             }
 
             return buffer;

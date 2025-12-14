@@ -26,10 +26,12 @@ class CertificatesService {
      */
     setLastProcessedInvoice(invoiceNumber) {
         const stmt = db.prepare(`
-            UPDATE app_config SET value = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE key = 'last_processed_invoice'
+            INSERT INTO app_config (key, value, updated_at)
+            VALUES ('last_processed_invoice', ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
         `);
         stmt.run(invoiceNumber);
+        console.log(`[Certificates] Ultima factură procesată setată: ${invoiceNumber}`);
     }
 
     /**
@@ -219,17 +221,18 @@ class CertificatesService {
         }
 
         const results = {
-            total: 0,
-            processed: 0,
-            generated: 0,
-            skipped: 0,
-            notFound: 0,
+            total: 0,           // Total încercări
+            processed: 0,       // Facturi care au existat (generated + skipped)
+            generated: 0,       // Certificate generate
+            skipped: 0,         // Facturi fără produse active
+            notFound: 0,        // Facturi inexistente (404)
             errors: [],
             certificates: []
         };
 
         let consecutiveNotFound = 0;
         const maxConsecutiveNotFound = 2; // Oprim după 2 facturi consecutive negăsite
+        let lastExistingInvoice = lastProcessed; // Ținem evidența ultimei facturi EXISTENTE
 
         // Iterăm prin numerele consecutive de facturi
         for (let i = 1; i <= maxInvoices; i++) {
@@ -245,6 +248,7 @@ class CertificatesService {
                 results.total++;
                 results.processed++;
                 consecutiveNotFound = 0; // Reset counter
+                lastExistingInvoice = invoiceIdentifier; // Actualizăm ultima factură existentă
 
                 if (result.generated) {
                     results.generated++;
@@ -255,20 +259,28 @@ class CertificatesService {
                         emagOrderNumber: result.emagOrderNumber,
                         emagUploaded: result.emagUploaded
                     });
-
-                    // Actualizăm ultima factură procesată doar dacă s-a generat certificat
-                    this.setLastProcessedInvoice(invoiceIdentifier);
                 } else {
                     results.skipped++;
-                    // Actualizăm și pentru cele skipped (fără produse active)
-                    this.setLastProcessedInvoice(invoiceIdentifier);
                 }
 
             } catch (error) {
                 results.total++;
 
-                // Verificăm dacă e eroare 404 (factura nu există)
-                if (error.message.includes('404') || error.message.includes('Not Found')) {
+                // Verificăm dacă e eroare care indică că factura nu există
+                // SmartBill poate returna diverse erori pentru facturi inexistente:
+                // - 404 / Not Found
+                // - Parse Error: Invalid header token (răspuns malformat pentru facturi inexistente)
+                // - NEPOTRIVIRE (când PDF-ul returnat e pentru altă factură)
+                const errorMsg = error.message.toLowerCase();
+                const isNotFoundError =
+                    errorMsg.includes('404') ||
+                    errorMsg.includes('not found') ||
+                    errorMsg.includes('parse error') ||
+                    errorMsg.includes('invalid header') ||
+                    errorMsg.includes('nepotrivire') ||
+                    errorMsg.includes('nu a fost găsită');
+
+                if (isNotFoundError) {
                     results.notFound++;
                     consecutiveNotFound++;
 
@@ -289,15 +301,34 @@ class CertificatesService {
                     });
                 }
             }
+            // Nu mai adăugăm pauză suplimentară - SmartBill rate limiting deja impune 2 secunde
+        }
 
-            // Pauză între facturi pentru a respecta rate limiting
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        // Salvăm ultima factură EXISTENTĂ procesată (nu cea cu care am încercat și nu am găsit-o)
+        if (lastExistingInvoice !== lastProcessed) {
+            this.setLastProcessedInvoice(lastExistingInvoice);
+            console.log(`[Auto] Ultima factură procesată actualizată: ${lastExistingInvoice}`);
         }
 
         return {
             success: true,
-            message: `Procesare completă. Ultima factură verificată: ${series}${startNumber + results.total}`,
-            ...results
+            message: `Procesare completă. Ultima factură existentă: ${lastExistingInvoice}`,
+            lastProcessedInvoice: lastExistingInvoice,
+            startedFrom: lastProcessed,
+            searchedRange: `${series}${startNumber + 1} - ${series}${startNumber + results.total}`,
+            // Statistici clare:
+            // - total: câte facturi am încercat să descărcăm
+            // - processed: câte facturi au EXISTAT efectiv (= generated + skipped)
+            // - generated: câte certificate am generat
+            // - skipped: câte facturi existente dar fără produse Premier
+            // - notFound: câte facturi NU au existat (404)
+            total: results.total,
+            processed: results.processed,      // Doar facturile care au existat!
+            generated: results.generated,
+            skipped: results.skipped,
+            notFound: results.notFound,
+            errors: results.errors,
+            certificates: results.certificates
         };
     }
 
@@ -350,6 +381,34 @@ class CertificatesService {
 
             const invoiceData = parseResult.data;
             console.log('Date extrase din PDF:', JSON.stringify(invoiceData, null, 2));
+
+            // 2.5 VERIFICARE CRITICĂ: Confirmăm că PDF-ul descărcat corespunde facturii cerute
+            // SmartBill poate returna un PDF gol/template pentru facturi inexistente
+            const parsedInvoiceNumber = invoiceData.invoiceNumber;
+            if (!parsedInvoiceNumber) {
+                console.log(`[Certificates] PDF pentru ${invoiceNumber} nu conține număr de factură - probabil factură inexistentă`);
+                throw new Error(`SmartBill PDF Error: 404 - Factura ${invoiceNumber} nu a fost găsită (PDF fără număr factură)`);
+            }
+
+            // Extragem doar cifrele din numerele de factură pentru comparație exactă
+            // Ex: cerut "PK202124602" -> extrage "202124602" sau "24602"
+            // Ex: parsat "PK202124601" -> extrage "202124601" sau "24601"
+            const requestedDigits = invoiceNumber.replace(/[^0-9]/g, ''); // "202124602"
+            const parsedDigits = parsedInvoiceNumber.replace(/[^0-9]/g, ''); // "202124601"
+
+            // Comparație STRICTĂ: ultimele 5 cifre trebuie să se potrivească exact
+            // (numărul facturii în SmartBill e de obicei 5 cifre, ex: 24601, 24602)
+            const requestedSuffix = requestedDigits.slice(-5); // "24602"
+            const parsedSuffix = parsedDigits.slice(-5); // "24601"
+
+            console.log(`[Certificates] Verificare factură: cerut=${invoiceNumber} (suffix=${requestedSuffix}), găsit=${parsedInvoiceNumber} (suffix=${parsedSuffix})`);
+
+            if (requestedSuffix !== parsedSuffix) {
+                console.log(`[Certificates] NEPOTRIVIRE: Cerut factură cu suffix ${requestedSuffix}, dar PDF conține suffix ${parsedSuffix}`);
+                throw new Error(`SmartBill PDF Error: 404 - Factura ${invoiceNumber} nu a fost găsită (PDF returnează altă factură: ${parsedInvoiceNumber})`);
+            }
+
+            console.log(`[Certificates] Verificare OK: Factură cerută ${invoiceNumber}, găsită ${parsedInvoiceNumber}`);
 
             // 3. Potrivim produsele cu nomenclatorul local
             const matchedProducts = invoiceParserService.matchProductsWithNomenclator(

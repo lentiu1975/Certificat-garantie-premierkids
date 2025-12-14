@@ -40,8 +40,8 @@ module.exports = {
 
         // Rate limiting pentru API
         RATE_LIMIT: {
-            MAX_REQUESTS_PER_MINUTE: 30,
-            DELAY_BETWEEN_REQUESTS_MS: 2000
+            MAX_REQUESTS_PER_MINUTE: 60,
+            DELAY_BETWEEN_REQUESTS_MS: 500
         }
     },
 
