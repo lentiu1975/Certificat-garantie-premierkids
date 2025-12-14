@@ -1,0 +1,105 @@
+    </main>
+
+    <!-- Modal Schimbare Parolă -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Schimbare Parolă</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="changePasswordForm">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Parola actuală</label>
+                            <input type="password" class="form-control" name="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Parola nouă</label>
+                            <input type="password" class="form-control" name="newPassword" required minlength="8">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Confirmă parola nouă</label>
+                            <input type="password" class="form-control" name="confirmNewPassword" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                        <button type="submit" class="btn btn-primary">Salvează</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container pentru alerte floating -->
+    <div id="alertContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Funcție pentru afișare alerte
+        function showAlert(message, type = 'success') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-floating alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.getElementById('alertContainer').appendChild(alertDiv);
+
+            setTimeout(() => {
+                alertDiv.classList.remove('show');
+                setTimeout(() => alertDiv.remove(), 150);
+            }, 5000);
+        }
+
+        // Funcție pentru loading
+        function showLoading() {
+            const overlay = document.createElement('div');
+            overlay.className = 'loading-overlay';
+            overlay.id = 'loadingOverlay';
+            overlay.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+            document.body.appendChild(overlay);
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.remove();
+        }
+
+        // Handler schimbare parolă
+        document.getElementById('changePasswordForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+
+            if (formData.get('newPassword') !== formData.get('confirmNewPassword')) {
+                showAlert('Parolele noi nu coincid', 'danger');
+                return;
+            }
+
+            try {
+                const response = await fetch('/auth/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        currentPassword: formData.get('currentPassword'),
+                        newPassword: formData.get('newPassword'),
+                        confirmNewPassword: formData.get('confirmNewPassword')
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Parola a fost schimbată cu succes', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+                    form.reset();
+                } else {
+                    showAlert(data.error || 'Eroare la schimbarea parolei', 'danger');
+                }
+            } catch (error) {
+                showAlert('Eroare la schimbarea parolei', 'danger');
+            }
+        });
+    </script>

@@ -1,0 +1,296 @@
+<%- include('partials/header') %>
+
+<div class="row g-4">
+    <!-- SmartBill API -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cloud me-2"></i>SmartBill API</span>
+                <% if (smartbillConfigured) { %>
+                    <span class="badge bg-success">Configurat</span>
+                <% } else { %>
+                    <span class="badge bg-warning">Neconfigurat</span>
+                <% } %>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-shield-check me-2"></i>
+                    <strong>Mod READ-ONLY:</strong> Aplicația doar citește date din SmartBill, nu modifică nimic.
+                </div>
+
+                <form id="smartbillForm">
+                    <div class="mb-3">
+                        <label class="form-label">Email SmartBill</label>
+                        <input type="email" class="form-control" name="username"
+                               placeholder="adresa@email.com" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Token API</label>
+                        <input type="password" class="form-control" name="token"
+                               placeholder="Token-ul de la SmartBill Cloud">
+                        <small class="text-muted">Găsești token-ul în SmartBill Cloud → Setări → Integrări API. Lasă gol pentru a păstra token-ul existent.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">CIF Firmă</label>
+                        <input type="text" class="form-control" name="cif"
+                               placeholder="ex: RO12345678" required>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-2"></i>Salvează
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="testSmartbillBtn">
+                            <i class="bi bi-plug me-2"></i>Testează Conexiunea
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- eMAG Marketplace API -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-shop me-2"></i>eMAG Marketplace API</span>
+                <% if (emagConfigured) { %>
+                    <span class="badge bg-success">Configurat</span>
+                <% } else { %>
+                    <span class="badge bg-secondary">Opțional</span>
+                <% } %>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-secondary">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Opțional:</strong> Configurează doar dacă dorești upload automat certificate în eMAG.
+                </div>
+
+                <form id="emagForm">
+                    <div class="mb-3">
+                        <label class="form-label">Username API eMAG</label>
+                        <input type="text" class="form-control" name="username"
+                               placeholder="Username API Marketplace">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Parola API eMAG</label>
+                        <input type="password" class="form-control" name="password"
+                               placeholder="Parola API Marketplace">
+                        <small class="text-muted">Credențialele se găsesc în Marketplace → Setări → API</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-2"></i>Salvează
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="testEmagBtn">
+                            <i class="bi bi-plug me-2"></i>Testează Conexiunea
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configurare Avansată -->
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-sliders me-2"></i>Configurare Avansată
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Serie Implicită Facturi</label>
+                <input type="text" class="form-control" id="defaultSeries" placeholder="ex: PKF">
+                <small class="text-muted">Seria folosită când se introduce doar numărul facturii</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Ultima Factură Procesată</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="lastProcessedConfig" placeholder="ex: PKF0001234">
+                    <button class="btn btn-outline-secondary" id="saveConfigBtn">Salvează</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>
+
+<script>
+// Handler formular SmartBill
+document.getElementById('smartbillForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se salvează...';
+
+    try {
+        const response = await fetch('/api/credentials/smartbill', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: form.username.value,
+                token: form.token.value,
+                cif: form.cif.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert('Credențiale SmartBill salvate cu succes!', 'success');
+            form.reset();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error || 'Eroare la salvare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-2"></i>Salvează';
+    }
+});
+
+// Handler formular eMAG
+document.getElementById('emagForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se salvează...';
+
+    try {
+        const response = await fetch('/api/credentials/emag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: form.username.value,
+                password: form.password.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert('Credențiale eMAG salvate cu succes!', 'success');
+            form.reset();
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            showAlert(data.error || 'Eroare la salvare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-2"></i>Salvează';
+    }
+});
+
+// Test SmartBill
+document.getElementById('testSmartbillBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('testSmartbillBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se testează...';
+
+    showAlert('Se testează conexiunea SmartBill...', 'info');
+
+    try {
+        const response = await fetch('/api/credentials/test-smartbill', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert(data.error || 'Eroare la testare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plug me-2"></i>Testează Conexiunea';
+    }
+});
+
+// Test eMAG
+document.getElementById('testEmagBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('testEmagBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se testează...';
+
+    showAlert('Se testează conexiunea eMAG...', 'info');
+
+    try {
+        const response = await fetch('/api/credentials/test-emag', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert(data.error || 'Eroare la testare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-plug me-2"></i>Testează Conexiunea';
+    }
+});
+
+// Salvare config
+document.getElementById('saveConfigBtn').addEventListener('click', async () => {
+    const lastProcessed = document.getElementById('lastProcessedConfig').value;
+
+    try {
+        await fetch('/api/certificates/last-processed', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber: lastProcessed })
+        });
+        showAlert('Configurare salvată', 'success');
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    }
+});
+
+// Încarcă configurarea curentă
+document.addEventListener('DOMContentLoaded', async () => {
+    // Încarcă credențialele existente
+    try {
+        const response = await fetch('/api/credentials/status');
+        const data = await response.json();
+
+        // Pre-populează formularele cu valorile existente
+        if (data.smartbill) {
+            const smartbillForm = document.getElementById('smartbillForm');
+            smartbillForm.username.value = data.smartbill.username || '';
+            smartbillForm.cif.value = data.smartbill.cif || '';
+            if (data.smartbill.hasToken) {
+                smartbillForm.token.placeholder = '••••••••••• (salvat)';
+            }
+        }
+
+        if (data.emag) {
+            const emagForm = document.getElementById('emagForm');
+            emagForm.username.value = data.emag.username || '';
+            if (data.emag.hasPassword) {
+                emagForm.password.placeholder = '••••••••••• (salvată)';
+            }
+        }
+    } catch (e) {
+        console.error('Eroare la încărcarea credențialelor:', e);
+    }
+
+    // Încarcă ultima factură procesată
+    try {
+        const response = await fetch('/api/certificates/last-processed');
+        const data = await response.json();
+        document.getElementById('lastProcessedConfig').value = data.lastProcessedInvoice || '';
+    } catch (e) {}
+});
+</script>
+</body>
+</html>

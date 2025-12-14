@@ -1,0 +1,65 @@
+<%- include('layout', { body: `
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <a href="/certificates/auto" class="text-decoration-none">
+            <div class="card h-100 border-primary">
+                <div class="card-body text-center py-5">
+                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex p-4 mb-3">
+                        <i class="bi bi-play-circle text-primary" style="font-size: 48px;"></i>
+                    </div>
+                    <h4>Procesare Automată</h4>
+                    <p class="text-muted mb-0">
+                        Procesează automat toate facturile noi din SmartBill și generează certificate pentru cele cu produse active.
+                    </p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-6">
+        <a href="/certificates/manual" class="text-decoration-none">
+            <div class="card h-100">
+                <div class="card-body text-center py-5">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 d-inline-flex p-4 mb-3">
+                        <i class="bi bi-file-earmark-plus text-secondary" style="font-size: 48px;"></i>
+                    </div>
+                    <h4>Generare Manuală</h4>
+                    <p class="text-muted mb-0">
+                        Generează un certificat de garanție pentru o factură specifică introducând numărul facturii.
+                    </p>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <i class="bi bi-info-circle me-2"></i>Cum Funcționează
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <h6><i class="bi bi-1-circle-fill text-primary me-2"></i>Citire Factură</h6>
+                <p class="text-muted small">
+                    Aplicația citește detaliile facturii din SmartBill (client, produse, tip client PF/PJ).
+                </p>
+            </div>
+            <div class="col-md-4">
+                <h6><i class="bi bi-2-circle-fill text-primary me-2"></i>Verificare Produse</h6>
+                <p class="text-muted small">
+                    Se verifică dacă produsele din factură sunt active în nomenclator și se aplică termenul de garanție corespunzător.
+                </p>
+            </div>
+            <div class="col-md-4">
+                <h6><i class="bi bi-3-circle-fill text-primary me-2"></i>Generare & Upload</h6>
+                <p class="text-muted small">
+                    Se generează PDF-ul și, dacă factura conține o comandă eMAG, se încarcă automat certificatul.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+`}) %>

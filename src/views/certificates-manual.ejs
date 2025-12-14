@@ -1,0 +1,610 @@
+<%- include('partials/header') %>
+
+<div class="row">
+    <div class="col-lg-12">
+        <!-- Generare Automată din PDF -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-lightning-charge me-2"></i>Generare Automată (Recomandat)
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Cum funcționează:</strong> Introduceți numărul facturii și sistemul va:
+                    <ol class="mb-0 mt-2">
+                        <li>Descărca automat PDF-ul facturii de la SmartBill</li>
+                        <li>Extrage datele: client, produse, dată</li>
+                        <li>Potrivi produsele cu nomenclatorul configurat</li>
+                        <li>Genera certificatul de garanție PDF</li>
+                    </ol>
+                </div>
+
+                <form id="autoForm">
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text"><i class="bi bi-receipt"></i></span>
+                        <input type="text" class="form-control" id="autoInvoiceNumber"
+                               placeholder="ex: PK202124601" required>
+                        <button type="submit" class="btn btn-primary" id="autoGenerateBtn">
+                            <i class="bi bi-lightning-charge me-2"></i>Procesează Automat
+                        </button>
+                    </div>
+                    <small class="text-muted">Format: SERIE+NUMĂR (ex: PK202124601) sau doar numărul</small>
+                </form>
+            </div>
+        </div>
+
+        <!-- Rezultat Automat -->
+        <div class="card mb-4" id="autoResultCard" style="display: none;">
+            <div class="card-header" id="autoResultHeader">
+                <i class="bi bi-check-circle me-2"></i>Rezultat
+            </div>
+            <div class="card-body" id="autoResultBody">
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr class="my-4">
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-pencil me-2"></i>Generare Manuală (Pentru comenzi telefonice)
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    <i class="bi bi-telephone me-2"></i>
+                    Pentru comenzi telefonice sau cazuri speciale, completați manual datele facturii și selectați produsele.
+                </p>
+
+                <form id="manualForm">
+                    <!-- Datele facturii -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Număr Factură *</label>
+                            <input type="text" class="form-control" id="invoiceNumber"
+                                   placeholder="ex: PKF0001234" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Data Factură *</label>
+                            <input type="date" class="form-control" id="invoiceDate" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Tip Client *</label>
+                            <select class="form-select" id="clientType" required>
+                                <option value="pf">Persoană Fizică (PF)</option>
+                                <option value="pj">Persoană Juridică (PJ)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Nume Client *</label>
+                        <input type="text" class="form-control" id="clientName"
+                               placeholder="Numele complet al clientului" required>
+                    </div>
+
+                    <!-- Selecție produse -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Produse (maxim 3)</label>
+                        <div class="input-group mb-2">
+                            <input type="text" class="form-control" id="productSearch"
+                                   placeholder="Caută produs după nume sau cod...">
+                            <button type="button" class="btn btn-outline-secondary" onclick="clearSearch()">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                        <div id="productResults" class="list-group mb-3" style="max-height: 200px; overflow-y: auto; display: none;">
+                        </div>
+                    </div>
+
+                    <!-- Produse selectate -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Produse Selectate</label>
+                        <div id="selectedProducts">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Căutați și selectați produse din lista de mai sus. Puteți adăuga maxim 3 produse.
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg" id="generateBtn">
+                        <i class="bi bi-lightning-charge me-2"></i>Generează Certificat
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Rezultat -->
+        <div class="card mt-4" id="resultCard" style="display: none;">
+            <div class="card-header" id="resultHeader">
+                <i class="bi bi-check-circle me-2"></i>Rezultat
+            </div>
+            <div class="card-body" id="resultBody">
+            </div>
+        </div>
+    </div>
+
+    <!-- Info panel -->
+    <div class="col-lg-4">
+        <div class="card bg-light">
+            <div class="card-header">
+                <i class="bi bi-info-circle me-2"></i>Informații
+            </div>
+            <div class="card-body">
+                <h6>Garanție în funcție de tip client:</h6>
+                <ul class="small">
+                    <li><strong>PF (Persoană Fizică)</strong>: Se aplică garanția configurată pentru persoane fizice</li>
+                    <li><strong>PJ (Persoană Juridică)</strong>: Se aplică garanția configurată pentru persoane juridice</li>
+                </ul>
+                <hr>
+                <h6>Produse disponibile:</h6>
+                <p class="small text-muted mb-0">
+                    Doar produsele active și configurate din nomenclator vor fi disponibile pentru selecție.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>
+
+<script>
+let allProducts = [];
+let selectedProducts = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Setăm data curentă ca default
+    document.getElementById('invoiceDate').valueAsDate = new Date();
+
+    // Încărcăm produsele
+    loadProducts();
+
+    // Event listeners pentru generare automată
+    document.getElementById('autoForm').addEventListener('submit', generateAutomatic);
+
+    // Event listeners pentru generare manuală
+    document.getElementById('manualForm').addEventListener('submit', generateCertificate);
+    document.getElementById('productSearch').addEventListener('input', searchProducts);
+    document.getElementById('clientType').addEventListener('change', updateWarranties);
+});
+
+// ==================== GENERARE AUTOMATĂ ====================
+
+async function generateAutomatic(event) {
+    event.preventDefault();
+
+    const invoiceNumber = document.getElementById('autoInvoiceNumber').value.trim();
+    const btn = document.getElementById('autoGenerateBtn');
+    const resultCard = document.getElementById('autoResultCard');
+
+    if (!invoiceNumber) {
+        showAlert('Introduceți numărul facturii', 'warning');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se descarcă și procesează...';
+    resultCard.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/certificates/generate-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber })
+        });
+
+        const data = await response.json();
+        showAutoResult(data, response.ok);
+
+    } catch (error) {
+        showAutoResult({ error: error.message }, false);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning-charge me-2"></i>Procesează Automat';
+    }
+}
+
+function showAutoResult(data, success) {
+    const resultCard = document.getElementById('autoResultCard');
+    const resultHeader = document.getElementById('autoResultHeader');
+    const resultBody = document.getElementById('autoResultBody');
+
+    resultCard.style.display = 'block';
+    resultCard.scrollIntoView({ behavior: 'smooth' });
+
+    if (!success || data.error) {
+        resultHeader.className = 'card-header bg-danger text-white';
+        resultHeader.innerHTML = '<i class="bi bi-x-circle me-2"></i>Eroare';
+        resultBody.innerHTML = `
+            <div class="alert alert-danger">
+                <strong>Eroare:</strong> ${data.error || 'Eroare necunoscută'}
+            </div>
+            <p class="text-muted">Încercați generarea manuală mai jos.</p>
+        `;
+        return;
+    }
+
+    if (!data.generated) {
+        resultHeader.className = 'card-header bg-warning';
+        resultHeader.innerHTML = '<i class="bi bi-info-circle me-2"></i>Certificat Negenerat';
+
+        let unmatchedHtml = '';
+        if (data.extractedProducts && data.extractedProducts.length > 0) {
+            unmatchedHtml = `
+                <div class="mt-3">
+                    <h6>Produse găsite în factură (dar neconfigurate în nomenclator):</h6>
+                    <ul class="list-group">
+                        ${data.extractedProducts.map(p => `
+                            <li class="list-group-item">
+                                <strong>${p.name || p.code}</strong>
+                                <small class="text-muted ms-2">Cod: ${p.code}</small>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        resultBody.innerHTML = `
+            <div class="alert alert-warning">
+                <strong>Motiv:</strong> ${data.message || 'Factura nu conține produse eligibile.'}
+            </div>
+            ${unmatchedHtml}
+            <div class="mt-3">
+                <a href="/products" class="btn btn-outline-primary">
+                    <i class="bi bi-gear me-2"></i>Configurează Produse în Nomenclator
+                </a>
+            </div>
+        `;
+        return;
+    }
+
+    resultHeader.className = 'card-header bg-success text-white';
+    resultHeader.innerHTML = '<i class="bi bi-check-circle me-2"></i>Certificat Generat cu Succes';
+
+    let productsHtml = '';
+    if (data.products && data.products.length > 0) {
+        productsHtml = `
+            <tr>
+                <th>Produse</th>
+                <td>
+                    <ul class="list-unstyled mb-0">
+                        ${data.products.map(p => `
+                            <li>
+                                <i class="bi bi-check-circle text-success me-1"></i>
+                                ${p.name} - <strong>${p.warrantyMonths} luni</strong>
+                                ${p.quantity > 1 ? ` (x${p.quantity})` : ''}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </td>
+            </tr>
+        `;
+    }
+
+    resultBody.innerHTML = `
+        <div class="mb-3">
+            <table class="table table-bordered mb-0">
+                <tr>
+                    <th style="width: 150px">Factură</th>
+                    <td><strong>${data.invoiceNumber}</strong></td>
+                </tr>
+                <tr>
+                    <th>Data</th>
+                    <td>${data.invoiceDate || '-'}</td>
+                </tr>
+                <tr>
+                    <th>Client</th>
+                    <td>${data.clientName || '-'}</td>
+                </tr>
+                <tr>
+                    <th>Tip Client</th>
+                    <td><span class="badge ${data.clientType === 'PJ' ? 'bg-info' : 'bg-secondary'}">${data.clientType || 'PF'}</span></td>
+                </tr>
+                ${data.emagOrderNumber ? `
+                <tr>
+                    <th>Comandă eMAG</th>
+                    <td><strong class="text-primary">${data.emagOrderNumber}</strong></td>
+                </tr>
+                ` : ''}
+                ${productsHtml}
+            </table>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/api/certificates/${data.invoiceNumber}/download" class="btn btn-success btn-lg">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Descarcă Certificat
+            </a>
+            <button type="button" class="btn btn-outline-primary btn-lg" onclick="resetAutoForm()">
+                <i class="bi bi-plus-circle me-2"></i>Procesează Altă Factură
+            </button>
+        </div>
+    `;
+}
+
+function resetAutoForm() {
+    document.getElementById('autoInvoiceNumber').value = '';
+    document.getElementById('autoResultCard').style.display = 'none';
+    document.getElementById('autoInvoiceNumber').focus();
+}
+
+// ==================== GENERARE MANUALĂ ====================
+
+async function loadProducts() {
+    try {
+        const response = await fetch('/api/products');
+        const data = await response.json();
+
+        // Filtrăm doar produsele active și configurate (is_new = 0, is_active = 1, is_service = 0)
+        allProducts = data.products.filter(p =>
+            Number(p.is_active) === 1 &&
+            Number(p.is_new) === 0 &&
+            Number(p.is_service) !== 1
+        );
+
+        console.log(`${allProducts.length} produse active și configurate încărcate`);
+    } catch (error) {
+        console.error('Eroare la încărcarea produselor:', error);
+    }
+}
+
+function searchProducts() {
+    const search = document.getElementById('productSearch').value.toLowerCase().trim();
+    const resultsDiv = document.getElementById('productResults');
+
+    if (search.length < 2) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const filtered = allProducts.filter(p =>
+        p.smartbill_name.toLowerCase().includes(search) ||
+        p.smartbill_code.toLowerCase().includes(search)
+    ).slice(0, 10); // Limităm la 10 rezultate
+
+    if (filtered.length === 0) {
+        resultsDiv.innerHTML = '<div class="list-group-item text-muted">Niciun produs găsit</div>';
+        resultsDiv.style.display = 'block';
+        return;
+    }
+
+    const clientType = document.getElementById('clientType').value;
+
+    resultsDiv.innerHTML = filtered.map(p => {
+        const warranty = clientType === 'pj' ? p.warranty_pj : p.warranty_pf;
+        const isSelected = selectedProducts.some(sp => sp.id === p.id);
+
+        return `
+            <button type="button" class="list-group-item list-group-item-action ${isSelected ? 'disabled bg-light' : ''}"
+                    onclick="selectProduct(${p.id})" ${isSelected ? 'disabled' : ''}>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${p.smartbill_name}</strong>
+                        <br><small class="text-muted">Cod: ${p.smartbill_code}</small>
+                    </div>
+                    <span class="badge bg-primary">${warranty} luni</span>
+                </div>
+            </button>
+        `;
+    }).join('');
+
+    resultsDiv.style.display = 'block';
+}
+
+function selectProduct(productId) {
+    if (selectedProducts.length >= 3) {
+        showAlert('Maxim 3 produse pot fi adăugate!', 'warning');
+        return;
+    }
+
+    const product = allProducts.find(p => p.id === productId);
+    if (!product) return;
+
+    if (selectedProducts.some(p => p.id === productId)) {
+        return; // Deja selectat
+    }
+
+    selectedProducts.push({
+        id: product.id,
+        code: product.smartbill_code,
+        name: product.smartbill_name,
+        warranty_pf: product.warranty_pf,
+        warranty_pj: product.warranty_pj,
+        voltage_min: product.voltage_min,
+        quantity: 1
+    });
+
+    renderSelectedProducts();
+    searchProducts(); // Refresh pentru a marca ca selectat
+}
+
+function removeProduct(index) {
+    selectedProducts.splice(index, 1);
+    renderSelectedProducts();
+    searchProducts();
+}
+
+function updateQuantity(index, quantity) {
+    if (quantity < 1) quantity = 1;
+    if (quantity > 99) quantity = 99;
+    selectedProducts[index].quantity = quantity;
+}
+
+function updateWarranties() {
+    renderSelectedProducts();
+    searchProducts();
+}
+
+function renderSelectedProducts() {
+    const container = document.getElementById('selectedProducts');
+    const clientType = document.getElementById('clientType').value;
+
+    if (selectedProducts.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                Căutați și selectați produse din lista de mai sus. Puteți adăuga maxim 3 produse.
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <table class="table table-bordered">
+            <thead class="table-light">
+                <tr>
+                    <th>Produs</th>
+                    <th style="width: 100px">Cantitate</th>
+                    <th style="width: 100px">Garanție</th>
+                    <th style="width: 50px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${selectedProducts.map((p, idx) => {
+                    const warranty = clientType === 'pj' ? p.warranty_pj : p.warranty_pf;
+                    return `
+                        <tr>
+                            <td>
+                                <strong>${p.name}</strong>
+                                <br><small class="text-muted">Cod: ${p.code}</small>
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm"
+                                       value="${p.quantity}" min="1" max="99"
+                                       onchange="updateQuantity(${idx}, this.value)">
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-success">${warranty} luni</span>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        onclick="removeProduct(${idx})">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+function clearSearch() {
+    document.getElementById('productSearch').value = '';
+    document.getElementById('productResults').style.display = 'none';
+}
+
+async function generateCertificate(event) {
+    event.preventDefault();
+
+    if (selectedProducts.length === 0) {
+        showAlert('Selectați cel puțin un produs!', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('generateBtn');
+    const resultCard = document.getElementById('resultCard');
+
+    const clientType = document.getElementById('clientType').value;
+    const invoiceDate = document.getElementById('invoiceDate').value;
+
+    // Formatăm data
+    const dateParts = invoiceDate.split('-');
+    const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+
+    // Pregătim produsele cu garanția corectă
+    const products = selectedProducts.map(p => ({
+        code: p.code,
+        name: p.name,
+        warrantyMonths: clientType === 'pj' ? p.warranty_pj : p.warranty_pf,
+        quantity: p.quantity
+    }));
+
+    // Găsim tensiunea minimă de la primul produs
+    const minVoltage = selectedProducts[0]?.voltage_min || '';
+
+    const requestData = {
+        invoiceNumber: document.getElementById('invoiceNumber').value.trim(),
+        invoiceDate: formattedDate,
+        clientName: document.getElementById('clientName').value.trim(),
+        isVatPayer: clientType === 'pj',
+        products: products,
+        minVoltage: minVoltage
+    };
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se generează...';
+    resultCard.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/certificates/generate-manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestData)
+        });
+
+        const data = await response.json();
+        showResult(data, response.ok);
+
+    } catch (error) {
+        showResult({ error: error.message }, false);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning-charge me-2"></i>Generează Certificat';
+    }
+}
+
+function showResult(data, success) {
+    const resultCard = document.getElementById('resultCard');
+    const resultHeader = document.getElementById('resultHeader');
+    const resultBody = document.getElementById('resultBody');
+
+    resultCard.style.display = 'block';
+    resultCard.scrollIntoView({ behavior: 'smooth' });
+
+    if (!success || data.error) {
+        resultHeader.className = 'card-header bg-danger text-white';
+        resultHeader.innerHTML = '<i class="bi bi-x-circle me-2"></i>Eroare';
+        resultBody.innerHTML = '<div class="alert alert-danger mb-0">' + (data.error || 'Eroare necunoscută') + '</div>';
+        return;
+    }
+
+    resultHeader.className = 'card-header bg-success text-white';
+    resultHeader.innerHTML = '<i class="bi bi-check-circle me-2"></i>Certificat Generat cu Succes';
+
+    resultBody.innerHTML = `
+        <div class="mb-3">
+            <table class="table table-bordered mb-0">
+                <tr><th style="width: 150px">Factură</th><td><strong>${data.invoiceNumber}</strong></td></tr>
+                <tr><th>Client</th><td>${data.clientName || '-'}</td></tr>
+                <tr><th>Produse</th><td>${data.productsCount} produs(e) cu garanție</td></tr>
+            </table>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/api/certificates/${data.invoiceNumber}/download" class="btn btn-success btn-lg">
+                <i class="bi bi-download me-2"></i>Descarcă PDF
+            </a>
+            <button type="button" class="btn btn-outline-primary btn-lg" onclick="resetForm()">
+                <i class="bi bi-plus-circle me-2"></i>Generează Alt Certificat
+            </button>
+        </div>
+    `;
+}
+
+function resetForm() {
+    document.getElementById('invoiceNumber').value = '';
+    document.getElementById('clientName').value = '';
+    document.getElementById('invoiceDate').valueAsDate = new Date();
+    document.getElementById('productSearch').value = '';
+    document.getElementById('productResults').style.display = 'none';
+    selectedProducts = [];
+    renderSelectedProducts();
+    document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('invoiceNumber').focus();
+}
+</script>
+</body>
+</html>

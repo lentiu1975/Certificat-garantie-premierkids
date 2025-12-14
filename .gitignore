@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment files (IMPORTANT - nu expune credentialele!)
+.env
+
+# Database
+data/*.db
+data/*.db-journal
+
+# Credentials file (criptat, dar tot nu il comitem)
+data/credentials.enc
+
+# PDF-uri generate
+output/*.pdf
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+*.tmp
+*.temp

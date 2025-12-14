@@ -1,0 +1,251 @@
+<%- include('partials/header') %>
+
+<!-- Configurare Punct de Plecare -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-gear me-2"></i>Configurare Procesare
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Ultima Factură Procesată</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="lastProcessed" value="<%= lastProcessed || '' %>" placeholder="ex: PKF0001234">
+                    <button class="btn btn-outline-secondary" id="saveLastProcessedBtn">
+                        <i class="bi bi-check"></i> Salvează
+                    </button>
+                </div>
+                <small class="text-muted">Procesarea va continua de la factura următoare</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Număr Maxim Facturi</label>
+                <select class="form-select" id="maxInvoices">
+                    <option value="10">10 facturi</option>
+                    <option value="25">25 facturi</option>
+                    <option value="50" selected>50 facturi</option>
+                    <option value="100">100 facturi</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-primary btn-lg w-100" id="processBtn">
+                    <i class="bi bi-play-circle me-2"></i>Pornește Procesarea
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progres -->
+<div class="card mb-4" id="progressCard" style="display: none;">
+    <div class="card-header">
+        <i class="bi bi-hourglass-split me-2"></i>Progres Procesare
+    </div>
+    <div class="card-body">
+        <div class="progress mb-3" style="height: 25px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%">0%</div>
+        </div>
+        <div id="progressStatus" class="text-center text-muted">Pregătire procesare...</div>
+    </div>
+</div>
+
+<!-- Rezultate -->
+<div class="card" id="resultsCard" style="display: none;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-check me-2"></i>Rezultate Procesare</span>
+        <button class="btn btn-sm btn-outline-primary" id="downloadAllBtn" style="display: none;">
+            <i class="bi bi-download me-2"></i>Descarcă Toate PDF-urile
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center">
+                    <h3 class="mb-0" id="statTotal">0</h3>
+                    <small class="text-muted">Facturi Procesate</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center bg-success bg-opacity-10">
+                    <h3 class="mb-0 text-success" id="statGenerated">0</h3>
+                    <small class="text-muted">Certificate Generate</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center">
+                    <h3 class="mb-0 text-warning" id="statSkipped">0</h3>
+                    <small class="text-muted">Sărite (fără produse active)</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="border rounded p-3 text-center">
+                    <h3 class="mb-0 text-info" id="statEmag">0</h3>
+                    <small class="text-muted">Încărcate în eMAG</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista Certificate Generate -->
+        <div class="table-responsive">
+            <table class="table table-sm" id="certificatesTable">
+                <thead>
+                    <tr>
+                        <th>Factură</th>
+                        <th>Client</th>
+                        <th>Comandă eMAG</th>
+                        <th>Status eMAG</th>
+                        <th>Acțiuni</th>
+                    </tr>
+                </thead>
+                <tbody id="certificatesBody">
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Erori -->
+        <div id="errorsSection" style="display: none;">
+            <h6 class="text-danger mt-4"><i class="bi bi-exclamation-triangle me-2"></i>Erori</h6>
+            <ul class="list-group" id="errorsList"></ul>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>
+
+<script>
+let generatedCertificates = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('saveLastProcessedBtn').addEventListener('click', saveLastProcessed);
+    document.getElementById('processBtn').addEventListener('click', startProcessing);
+    document.getElementById('downloadAllBtn').addEventListener('click', downloadAllPdfs);
+});
+
+async function saveLastProcessed() {
+    const value = document.getElementById('lastProcessed').value.trim();
+
+    try {
+        const response = await fetch('/api/certificates/last-processed', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber: value })
+        });
+
+        if (response.ok) {
+            showAlert('Punct de plecare salvat cu succes', 'success');
+        } else {
+            const data = await response.json();
+            showAlert(data.error || 'Eroare la salvare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    }
+}
+
+async function startProcessing() {
+    const btn = document.getElementById('processBtn');
+    const maxInvoices = document.getElementById('maxInvoices').value;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se procesează...';
+
+    document.getElementById('progressCard').style.display = 'block';
+    document.getElementById('resultsCard').style.display = 'none';
+
+    try {
+        const response = await fetch('/api/certificates/process-auto', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ maxInvoices: parseInt(maxInvoices) })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showResults(data);
+
+            // Actualizăm ultima factură procesată în UI
+            const lastProcessedInput = document.getElementById('lastProcessed');
+            const lastCert = data.certificates?.[data.certificates.length - 1];
+            if (lastCert) {
+                lastProcessedInput.value = lastCert.invoiceNumber;
+            }
+        } else {
+            showAlert(data.error || 'Eroare la procesare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-circle me-2"></i>Pornește Procesarea';
+        document.getElementById('progressCard').style.display = 'none';
+    }
+}
+
+function showResults(data) {
+    document.getElementById('resultsCard').style.display = 'block';
+
+    // Statistici
+    document.getElementById('statTotal').textContent = data.processed || 0;
+    document.getElementById('statGenerated').textContent = data.generated || 0;
+    document.getElementById('statSkipped').textContent = data.skipped || 0;
+
+    const emagUploaded = (data.certificates || []).filter(c => c.emagUploaded).length;
+    document.getElementById('statEmag').textContent = emagUploaded;
+
+    // Lista certificate
+    generatedCertificates = data.certificates || [];
+    const tbody = document.getElementById('certificatesBody');
+
+    if (generatedCertificates.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Niciun certificat generat</td></tr>';
+        document.getElementById('downloadAllBtn').style.display = 'none';
+    } else {
+        document.getElementById('downloadAllBtn').style.display = 'inline-block';
+        tbody.innerHTML = generatedCertificates.map(cert =>
+            '<tr>' +
+                '<td><strong>' + cert.invoiceNumber + '</strong></td>' +
+                '<td>' + (cert.clientName || '-') + '</td>' +
+                '<td>' + (cert.emagOrderNumber || '-') + '</td>' +
+                '<td>' + (cert.emagOrderNumber ?
+                    (cert.emagUploaded ?
+                        '<span class="badge bg-success">Încărcat</span>' :
+                        '<span class="badge bg-warning">Eroare</span>') :
+                    '-') + '</td>' +
+                '<td>' +
+                    '<a href="/api/certificates/' + cert.invoiceNumber + '/download" class="btn btn-sm btn-outline-primary">' +
+                        '<i class="bi bi-download"></i>' +
+                    '</a>' +
+                '</td>' +
+            '</tr>'
+        ).join('');
+    }
+
+    // Erori
+    const errorsList = document.getElementById('errorsList');
+    const errorsSection = document.getElementById('errorsSection');
+
+    if (data.errors && data.errors.length > 0) {
+        errorsSection.style.display = 'block';
+        errorsList.innerHTML = data.errors.map(err =>
+            '<li class="list-group-item list-group-item-danger">' +
+                '<strong>' + err.invoiceNumber + ':</strong> ' + err.error +
+            '</li>'
+        ).join('');
+    } else {
+        errorsSection.style.display = 'none';
+    }
+}
+
+function downloadAllPdfs() {
+    generatedCertificates.forEach((cert, index) => {
+        setTimeout(() => {
+            const link = document.createElement('a');
+            link.href = '/api/certificates/' + cert.invoiceNumber + '/download';
+            link.download = 'Certificat_Garantie_' + cert.invoiceNumber + '.pdf';
+            link.click();
+        }, index * 500);
+    });
+}
+</script>
+</body>
+</html>

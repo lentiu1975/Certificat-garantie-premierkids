@@ -1,0 +1,330 @@
+<%- include('partials/header') %>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-arrow-repeat me-2"></i>Sincronizare SmartBill</span>
+        <div>
+            <button class="btn btn-warning me-2" id="autoFillBtn">
+                <i class="bi bi-magic me-2"></i>Auto-completare Premier
+            </button>
+            <button class="btn btn-primary" id="syncBtn">
+                <i class="bi bi-cloud-download me-2"></i>Actualizează din SmartBill
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-0">
+            <strong>Sincronizare:</strong> Importă produsele din SmartBill. <br>
+            <strong>Auto-completare:</strong> Completează automat produsele cu "Premier" în denumire (Garanție PF=24, PJ=12, tensiune din denumire). Restul produselor devin inactive.
+        </p>
+    </div>
+</div>
+
+<!-- Filtre -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Caută produs...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterStatus">
+                    <option value="all">Toate produsele</option>
+                    <option value="new">De configurat</option>
+                    <option value="configured">Configurate</option>
+                    <option value="services">Servicii (fără garanție)</option>
+                    <option value="active">Doar active</option>
+                    <option value="inactive">Doar inactive</option>
+                </select>
+            </div>
+            <div class="col-md-5 text-end">
+                <span id="productsCount" class="text-muted me-3"></span>
+                <button class="btn btn-success" id="saveBtn" disabled>
+                    <i class="bi bi-check-lg me-2"></i>Salvează Modificările
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabel Produse -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="productsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 26%">Produs</th>
+                        <th style="width: 10%">Garanție PF</th>
+                        <th style="width: 10%">Garanție PJ</th>
+                        <th style="width: 10%">Tens. Alim.</th>
+                        <th style="width: 10%">Tens. Min.</th>
+                        <th style="width: 8%">Activ</th>
+                        <th style="width: 8%">Serviciu</th>
+                        <th style="width: 10%">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="productsBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 mb-0">Se încarcă produsele...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<%- include('partials/footer') %>
+
+<script>
+let allProducts = [];
+let modifiedProducts = new Set();
+
+// Încarcă produsele la start
+document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+
+    // Event listeners
+    document.getElementById('syncBtn').addEventListener('click', syncProducts);
+    document.getElementById('saveBtn').addEventListener('click', saveAllProducts);
+    document.getElementById('searchInput').addEventListener('keyup', filterProducts);
+    document.getElementById('filterStatus').addEventListener('change', filterProducts);
+    document.getElementById('autoFillBtn').addEventListener('click', autoFillProducts);
+});
+
+async function loadProducts() {
+    try {
+        const response = await fetch('/api/products');
+        const data = await response.json();
+        allProducts = data.products;
+        renderProducts(allProducts);
+        document.getElementById('productsCount').textContent = data.total + ' produse (' + data.newCount + ' noi)';
+    } catch (error) {
+        showAlert('Eroare la încărcarea produselor: ' + error.message, 'danger');
+    }
+}
+
+function renderProducts(products) {
+    const tbody = document.getElementById('productsBody');
+
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">Niciun produs găsit</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map(p => {
+        const isActive = Number(p.is_active) === 1;
+        const isService = Number(p.is_service) === 1;
+        // Produsul necesită configurare doar dacă este activ, nu e serviciu, și marcat ca nou
+        const needsConfig = isActive && !isService && Number(p.is_new) === 1;
+
+        // Determinăm statusul
+        let statusBadge;
+        if (isService) {
+            statusBadge = '<span class="badge bg-info">Serviciu</span>';
+        } else if (!isActive) {
+            statusBadge = '<span class="badge bg-secondary">Inactiv</span>';
+        } else if (needsConfig) {
+            statusBadge = '<span class="badge bg-warning text-dark">De configurat</span>';
+        } else {
+            statusBadge = '<span class="badge bg-success">Configurat</span>';
+        }
+
+        return '<tr data-id="' + p.id + '" class="' + (needsConfig ? 'table-warning' : '') + '">' +
+            '<td>' +
+                '<strong>' + escapeHtml(p.smartbill_name) + '</strong><br>' +
+                '<small class="text-muted">Cod: ' + escapeHtml(p.smartbill_code) + '</small>' +
+            '</td>' +
+            '<td>' +
+                '<input type="number" class="form-control form-control-sm" value="' + (p.warranty_pf || '') + '" ' +
+                'data-field="warranty_pf" min="0">' +
+            '</td>' +
+            '<td>' +
+                '<input type="number" class="form-control form-control-sm" value="' + (p.warranty_pj || '') + '" ' +
+                'data-field="warranty_pj" min="0">' +
+            '</td>' +
+            '<td>' +
+                '<input type="text" class="form-control form-control-sm" value="' + escapeHtml(p.voltage_supply || '') + '" ' +
+                'data-field="voltage_supply" placeholder="ex: 12V">' +
+            '</td>' +
+            '<td>' +
+                '<input type="text" class="form-control form-control-sm" value="' + escapeHtml(p.voltage_min || '') + '" ' +
+                'data-field="voltage_min" placeholder="ex: 10.5">' +
+            '</td>' +
+            '<td>' +
+                '<div class="form-check form-switch">' +
+                    '<input class="form-check-input" type="checkbox" ' + (isActive ? 'checked' : '') + ' ' +
+                    'data-field="is_active">' +
+                '</div>' +
+            '</td>' +
+            '<td>' +
+                '<div class="form-check form-switch">' +
+                    '<input class="form-check-input" type="checkbox" ' + (isService ? 'checked' : '') + ' ' +
+                    'data-field="is_service">' +
+                '</div>' +
+            '</td>' +
+            '<td>' + statusBadge + '</td>' +
+        '</tr>';
+    }).join('');
+
+    // Adaugă event listeners pentru input-uri
+    tbody.querySelectorAll('input').forEach(input => {
+        input.addEventListener('change', function() {
+            const row = this.closest('tr');
+            const id = parseInt(row.dataset.id);
+            modifiedProducts.add(id);
+            row.classList.add('table-info');
+            document.getElementById('saveBtn').disabled = false;
+        });
+    });
+}
+
+function filterProducts() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const status = document.getElementById('filterStatus').value;
+
+    let filtered = allProducts.filter(p => {
+        const matchSearch = p.smartbill_name.toLowerCase().includes(search) ||
+                           p.smartbill_code.toLowerCase().includes(search);
+
+        if (!matchSearch) return false;
+
+        // Convertim la numere pentru comparație sigură
+        const isNew = Number(p.is_new);
+        const isActive = Number(p.is_active);
+        const isService = Number(p.is_service) === 1;
+        // Produsul necesită configurare doar dacă este activ, nu e serviciu, și marcat ca nou
+        const needsConfig = isActive === 1 && !isService && isNew === 1;
+
+        if (status === 'new') return needsConfig;
+        if (status === 'configured') return isActive === 1 && !isService && !needsConfig;
+        if (status === 'services') return isService;
+        if (status === 'active') return isActive === 1;
+        if (status === 'inactive') return isActive === 0;
+
+        return true;
+    });
+
+    renderProducts(filtered);
+
+    // Actualizăm counter-ul cu numărul filtrat (doar produse active, non-servicii care necesită configurare)
+    const needsConfigCount = filtered.filter(p =>
+        Number(p.is_active) === 1 && Number(p.is_service) !== 1 && Number(p.is_new) === 1
+    ).length;
+    document.getElementById('productsCount').textContent =
+        filtered.length + ' produse afișate (' + needsConfigCount + ' de configurat)';
+}
+
+async function autoFillProducts() {
+    if (!confirm('Aceasta va completa automat toate produsele:\n\n- Produse cu "Premier": Garanție PF=24, PJ=12, tensiune detectată din denumire\n- Produse fără "Premier": devin INACTIVE\n\nContinui?')) {
+        return;
+    }
+
+    const btn = document.getElementById('autoFillBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se procesează...';
+
+    try {
+        const response = await fetch('/api/products/auto-fill', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(data.message, 'success');
+            await loadProducts();
+        } else {
+            showAlert(data.error || 'Eroare la auto-completare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare la auto-completare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic me-2"></i>Auto-completare Premier';
+    }
+}
+
+async function syncProducts() {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se sincronizează...';
+
+    try {
+        const response = await fetch('/api/products/sync', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(data.message, 'success');
+            await loadProducts();
+        } else {
+            showAlert(data.error || 'Eroare la sincronizare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare la sincronizare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-cloud-download me-2"></i>Actualizează din SmartBill';
+    }
+}
+
+async function saveAllProducts() {
+    if (modifiedProducts.size === 0) return;
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se salvează...';
+
+    const productsToSave = [];
+
+    modifiedProducts.forEach(id => {
+        const row = document.querySelector('tr[data-id="' + id + '"]');
+        if (row) {
+            productsToSave.push({
+                id: id,
+                warranty_pf: parseInt(row.querySelector('[data-field="warranty_pf"]').value) || 0,
+                warranty_pj: parseInt(row.querySelector('[data-field="warranty_pj"]').value) || 0,
+                voltage_supply: row.querySelector('[data-field="voltage_supply"]').value,
+                voltage_min: row.querySelector('[data-field="voltage_min"]').value,
+                is_active: row.querySelector('[data-field="is_active"]').checked,
+                is_service: row.querySelector('[data-field="is_service"]').checked
+            });
+        }
+    });
+
+    try {
+        const response = await fetch('/api/products/bulk-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ products: productsToSave })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(data.message, 'success');
+            modifiedProducts.clear();
+            await loadProducts();
+        } else {
+            showAlert(data.error || 'Eroare la salvare', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare la salvare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Salvează Modificările';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+</body>
+</html>
