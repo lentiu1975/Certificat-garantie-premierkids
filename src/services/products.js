@@ -117,7 +117,7 @@ class ProductsService {
      * Actualizează un produs
      */
     updateProduct(id, data) {
-        const { warranty_pf, warranty_pj, is_active, is_service, voltage_supply, voltage_min } = data;
+        const { warranty_pf, warranty_pj, is_active, is_service, voltage_supply, voltage_min, display_name } = data;
 
         // Verificăm dacă toate câmpurile obligatorii sunt completate
         const allFieldsComplete =
@@ -140,6 +140,7 @@ class ProductsService {
                 is_service = ?,
                 voltage_supply = ?,
                 voltage_min = ?,
+                display_name = ?,
                 is_new = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
@@ -152,6 +153,7 @@ class ProductsService {
             is_service ? 1 : 0,
             voltage_supply || '',
             voltage_min || '',
+            display_name || null,
             isNew,
             id
         );

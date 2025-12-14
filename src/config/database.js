@@ -86,6 +86,13 @@ function createTables() {
         // Coloana există deja
     }
 
+    // Migrație: adaugă coloana display_name dacă nu există
+    try {
+        db.run(`ALTER TABLE products ADD COLUMN display_name TEXT`);
+    } catch (e) {
+        // Coloana există deja
+    }
+
     // Tabel configurare aplicație
     db.run(`
         CREATE TABLE IF NOT EXISTS app_config (

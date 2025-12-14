@@ -81,7 +81,9 @@ class CertificatesService {
 
         if (invoice.products && invoice.products.length > 0) {
             for (const invoiceProduct of invoice.products) {
+                console.log(`[Certificates] Produs din factură: code="${invoiceProduct.code}", name="${invoiceProduct.name}"`);
                 const localProduct = productsService.getProductByCode(invoiceProduct.code);
+                console.log(`[Certificates] Produs găsit în nomenclator:`, localProduct ? `code="${localProduct.smartbill_code}", name="${localProduct.smartbill_name}"` : 'NEGĂSIT');
 
                 if (localProduct && localProduct.is_active === 1) {
                     const warrantyMonths = isVatPayer ?
@@ -90,7 +92,7 @@ class CertificatesService {
 
                     activeProducts.push({
                         code: invoiceProduct.code,
-                        name: invoiceProduct.name || localProduct.smartbill_name,
+                        name: localProduct.display_name || localProduct.smartbill_name,
                         warrantyMonths: warrantyMonths,
                         quantity: invoiceProduct.quantity || 1
                     });
@@ -182,60 +184,67 @@ class CertificatesService {
 
     /**
      * Procesează automat facturile neprocessate
+     * Funcționează prin iterare consecutivă de numere de facturi (ca la generarea manuală)
+     * SmartBill nu are endpoint pentru listare facturi, așa că iterăm prin numere consecutive
      */
     async processUnprocessedInvoices(options = {}) {
-        const { startDate, endDate, maxInvoices = 100 } = options;
+        const { maxInvoices = 50 } = options;
 
-        // Obținem lista de facturi din SmartBill
-        const invoicesResponse = await smartBillService.getInvoices({
-            startDate: startDate || this._getDefaultStartDate(),
-            endDate: endDate || this._getCurrentDate()
-        });
+        // Obținem ultima factură procesată
+        const lastProcessed = this.getLastProcessedInvoice();
 
-        if (!invoicesResponse || !invoicesResponse.list) {
+        if (!lastProcessed) {
             return {
                 success: false,
-                error: 'Nu s-au putut obține facturile din SmartBill'
+                error: 'Trebuie să setați ultima factură procesată înainte de procesarea automată. Introduceți numărul ultimei facturi procesate (ex: PK202124575).'
             };
         }
 
-        const allInvoices = invoicesResponse.list;
-        const lastProcessed = this.getLastProcessedInvoice();
+        // Parsăm ultima factură procesată pentru a obține seria și numărul
+        const { series, number } = this._parseInvoiceIdentifier(lastProcessed);
 
-        // Filtrăm facturile care nu au fost procesate
-        let invoicesToProcess = [];
-        let foundLastProcessed = !lastProcessed; // Dacă nu avem ultima procesată, procesăm toate
-
-        for (const invoice of allInvoices) {
-            const invoiceNumber = `${invoice.seriesName}${invoice.number}`;
-
-            if (!foundLastProcessed) {
-                if (invoiceNumber === lastProcessed) {
-                    foundLastProcessed = true;
-                }
-                continue;
-            }
-
-            invoicesToProcess.push(invoice);
+        if (!series || !number) {
+            return {
+                success: false,
+                error: `Format invalid pentru ultima factură procesată: ${lastProcessed}. Folosiți formatul: PK202124575`
+            };
         }
 
-        // Limităm numărul de facturi procesate
-        invoicesToProcess = invoicesToProcess.slice(0, maxInvoices);
+        const startNumber = parseInt(number, 10);
+        if (isNaN(startNumber)) {
+            return {
+                success: false,
+                error: `Numărul facturii trebuie să fie numeric: ${number}`
+            };
+        }
 
         const results = {
-            total: invoicesToProcess.length,
+            total: 0,
             processed: 0,
             generated: 0,
             skipped: 0,
+            notFound: 0,
             errors: [],
             certificates: []
         };
 
-        for (const invoice of invoicesToProcess) {
-            try {
-                const result = await this.processInvoice(invoice.seriesName, invoice.number);
+        let consecutiveNotFound = 0;
+        const maxConsecutiveNotFound = 2; // Oprim după 2 facturi consecutive negăsite
 
+        // Iterăm prin numerele consecutive de facturi
+        for (let i = 1; i <= maxInvoices; i++) {
+            const currentNumber = String(startNumber + i);
+            const invoiceIdentifier = `${series}${currentNumber}`;
+
+            console.log(`[Auto] Procesare factură ${i}/${maxInvoices}: ${invoiceIdentifier}`);
+
+            try {
+                // Folosim aceeași metodă ca la generarea manuală
+                const result = await this.processInvoiceFromPdf(series, currentNumber);
+
+                results.total++;
                 results.processed++;
+                consecutiveNotFound = 0; // Reset counter
 
                 if (result.generated) {
                     results.generated++;
@@ -246,18 +255,39 @@ class CertificatesService {
                         emagOrderNumber: result.emagOrderNumber,
                         emagUploaded: result.emagUploaded
                     });
+
+                    // Actualizăm ultima factură procesată doar dacă s-a generat certificat
+                    this.setLastProcessedInvoice(invoiceIdentifier);
                 } else {
                     results.skipped++;
+                    // Actualizăm și pentru cele skipped (fără produse active)
+                    this.setLastProcessedInvoice(invoiceIdentifier);
                 }
 
-                // Actualizăm ultima factură procesată
-                this.setLastProcessedInvoice(`${invoice.seriesName}${invoice.number}`);
-
             } catch (error) {
-                results.errors.push({
-                    invoiceNumber: `${invoice.seriesName}${invoice.number}`,
-                    error: error.message
-                });
+                results.total++;
+
+                // Verificăm dacă e eroare 404 (factura nu există)
+                if (error.message.includes('404') || error.message.includes('Not Found')) {
+                    results.notFound++;
+                    consecutiveNotFound++;
+
+                    console.log(`[Auto] Factura ${invoiceIdentifier} nu există (${consecutiveNotFound}/${maxConsecutiveNotFound} consecutive)`);
+
+                    // Oprim dacă am găsit prea multe facturi consecutive inexistente
+                    if (consecutiveNotFound >= maxConsecutiveNotFound) {
+                        console.log(`[Auto] Oprire: ${maxConsecutiveNotFound} facturi consecutive nu au fost găsite`);
+                        break;
+                    }
+                } else {
+                    // Altă eroare - o înregistrăm dar continuăm
+                    consecutiveNotFound = 0;
+                    console.error(`[Auto] EROARE pentru ${invoiceIdentifier}:`, error.message);
+                    results.errors.push({
+                        invoiceNumber: invoiceIdentifier,
+                        error: error.message
+                    });
+                }
             }
 
             // Pauză între facturi pentru a respecta rate limiting
@@ -266,6 +296,7 @@ class CertificatesService {
 
         return {
             success: true,
+            message: `Procesare completă. Ultima factură verificată: ${series}${startNumber + results.total}`,
             ...results
         };
     }

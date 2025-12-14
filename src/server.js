@@ -123,6 +123,33 @@ async function startServer() {
     const apiRoutes = require('./routes/api');
     const pageRoutes = require('./routes/pages');
 
+    // Endpoint de debug temporar (fără autentificare) pentru a vedea structura facturilor SmartBill
+    app.get('/debug-invoices', async (req, res) => {
+        try {
+            const smartBillService = require('./services/smartbill');
+            await smartBillService.initialize(process.env.ENCRYPTION_KEY);
+
+            const invoicesResponse = await smartBillService.getInvoices({
+                startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0]
+            });
+
+            if (!invoicesResponse || !invoicesResponse.list) {
+                return res.json({ error: 'Nu s-au găsit facturi', response: invoicesResponse });
+            }
+
+            const sampleInvoice = invoicesResponse.list[0];
+            res.json({
+                success: true,
+                totalInvoices: invoicesResponse.list.length,
+                firstInvoiceKeys: sampleInvoice ? Object.keys(sampleInvoice) : [],
+                firstInvoice: sampleInvoice
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message, stack: error.stack });
+        }
+    });
+
     app.use('/auth', authRoutes);
     app.use('/api', apiRoutes);
     app.use('/', pageRoutes);

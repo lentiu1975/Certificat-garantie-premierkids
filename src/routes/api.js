@@ -384,6 +384,119 @@ router.post('/certificates/generate-single', [
 });
 
 /**
+ * GET /api/certificates/test-invoice-list - Test pentru a vedea structura facturilor de la SmartBill
+ */
+router.get('/certificates/test-invoice-list', async (req, res) => {
+    try {
+        await smartBillService.initialize(process.env.ENCRYPTION_KEY);
+
+        const invoicesResponse = await smartBillService.getInvoices({
+            startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // ultimele 7 zile
+            endDate: new Date().toISOString().split('T')[0]
+        });
+
+        if (!invoicesResponse || !invoicesResponse.list) {
+            return res.json({ error: 'Nu s-au găsit facturi', response: invoicesResponse });
+        }
+
+        // Returnăm primele 3 facturi pentru a vedea structura
+        const sampleInvoices = invoicesResponse.list.slice(0, 3);
+
+        res.json({
+            success: true,
+            totalInvoices: invoicesResponse.list.length,
+            sampleInvoices: sampleInvoices,
+            firstInvoiceKeys: sampleInvoices[0] ? Object.keys(sampleInvoices[0]) : []
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/certificates/debug - Diagnostic pentru procesarea facturii (fără generare efectivă)
+ */
+router.post('/certificates/debug', [
+    body('invoiceNumber').trim().notEmpty().withMessage('Numărul facturii este obligatoriu')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        await smartBillService.initialize(process.env.ENCRYPTION_KEY);
+
+        const invoiceParserService = require('../services/invoice-parser');
+        const invoiceIdentifier = req.body.invoiceNumber.trim().toUpperCase();
+
+        // Parsăm identificatorul
+        let series, number;
+        const seriesWithYearMatch = invoiceIdentifier.match(/^([A-Z]+)(\d{4})(\d{4,6})$/);
+        if (seriesWithYearMatch) {
+            series = seriesWithYearMatch[1] + seriesWithYearMatch[2];
+            number = seriesWithYearMatch[3];
+        } else {
+            const simpleMatch = invoiceIdentifier.match(/^([A-Z]{2,5})(\d+)$/);
+            if (simpleMatch) {
+                series = simpleMatch[1];
+                number = simpleMatch[2];
+            }
+        }
+
+        if (!series || !number) {
+            return res.status(400).json({ error: 'Format factură invalid' });
+        }
+
+        // Descărcăm PDF-ul
+        const pdfBuffer = await smartBillService.getInvoicePdf(series, number);
+
+        // Parsăm PDF-ul
+        const parseResult = await invoiceParserService.parseInvoicePdf(pdfBuffer);
+
+        if (!parseResult.success) {
+            return res.status(400).json({ error: parseResult.error });
+        }
+
+        // Potrivim produsele cu nomenclatorul
+        const matchedProducts = invoiceParserService.matchProductsWithNomenclator(
+            parseResult.data.products,
+            productsService
+        );
+
+        // Căutăm produsul după cod în nomenclator pentru a vedea ce găsim
+        const nomenclatorLookup = {};
+        for (const product of parseResult.data.products) {
+            const localProduct = productsService.getProductByCode(product.code);
+            nomenclatorLookup[product.code] = localProduct ? {
+                smartbill_code: localProduct.smartbill_code,
+                smartbill_name: localProduct.smartbill_name,
+                display_name: localProduct.display_name,
+                is_active: localProduct.is_active
+            } : null;
+        }
+
+        res.json({
+            success: true,
+            invoiceNumber: `${series}${number}`,
+            parsedData: {
+                invoiceNumber: parseResult.data.invoiceNumber,
+                invoiceDate: parseResult.data.invoiceDate,
+                clientName: parseResult.data.clientName,
+                isVatPayer: parseResult.data.isVatPayer,
+                products: parseResult.data.products,
+                emagOrderNumber: parseResult.data.emagOrderNumber
+            },
+            matchedProducts: matchedProducts,
+            nomenclatorLookup: nomenclatorLookup,
+            rawTextPreview: parseResult.data.rawText ? parseResult.data.rawText.substring(0, 2000) : null
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
  * POST /api/certificates/generate-manual - Generare certificat cu date introduse manual
  */
 router.post('/certificates/generate-manual', [

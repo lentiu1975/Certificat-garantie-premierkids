@@ -263,125 +263,140 @@ class InvoiceParserService {
     /**
      * Extrage produsele din factură
      * SmartBill are un format special unde produsul poate apărea pe mai multe linii
-     * și de 2 ori (versiune scurtă + versiune lungă)
      */
     _extractProducts(text) {
         const products = [];
-        const seenProducts = new Set(); // Pentru a evita duplicate
+        const seenProducts = new Set();
 
-        // Metoda 1: Căutăm pattern-uri complete care conțin "Premier" și specificații (V, copii, etc)
-        // Pattern pentru produse Premier cu voltaj
-        const premierFullPattern = /([A-Za-z]+\s+electric\s+Premier[^,\n]*(?:,\s*\d+\s*copii)?[^,\n]*,\s*\d+V[^,\n]*(?:,\s*[^,\n]+)?)/gi;
+        // Căutăm linii care conțin "Premier" și le combinăm cu liniile următoare
+        // până când găsim o linie completă cu voltaj și culoare
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-        let match;
-        while ((match = premierFullPattern.exec(text)) !== null) {
-            let name = match[1].trim();
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
 
-            // Curățăm numele de caractere nedorite
-            name = name.replace(/\s+/g, ' ').trim();
-            name = name.replace(/\s*\n\s*/g, ' ');
+            // Căutăm linii care încep cu tipul produsului Premier
+            // Ex: "Masinuta electrica 4x4 Premier...", "ATV electric Premier...", etc.
+            if (line.toLowerCase().includes('premier') &&
+                (line.toLowerCase().includes('electric') || line.toLowerCase().includes('masinuta') ||
+                 line.toLowerCase().includes('atv') || line.toLowerCase().includes('motocicleta') ||
+                 line.toLowerCase().includes('tractor') || line.toLowerCase().includes('kart'))) {
 
-            // Normalizăm pentru comparație (lowercase, fără spații multiple)
-            const normalizedName = name.toLowerCase().replace(/\s+/g, ' ');
+                let fullName = line;
 
-            // Verificăm să nu fie duplicat (produsul apare de 2 ori în SmartBill PDF)
-            if (!seenProducts.has(normalizedName) && name.toLowerCase().includes('premier')) {
-                seenProducts.add(normalizedName);
+                // Concatenăm cu liniile următoare până găsim o linie completă
+                // (care conține voltaj ȘI culoare)
+                let j = i + 1;
+                while (j < lines.length && j < i + 5) {
+                    const nextLine = lines[j];
 
-                // Extragem codul produsului din nomenclator (căutăm în baza de date)
-                // Deocamdată folosim un cod generic
-                const code = this._extractProductCode(name, text);
-
-                products.push({
-                    code: code,
-                    name: name,
-                    quantity: 1
-                });
-            }
-        }
-
-        // Metoda 2: Dacă nu am găsit, căutăm orice linie cu "Premier" care are și voltaj
-        if (products.length === 0) {
-            const lines = text.split('\n');
-
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-
-                if (line.toLowerCase().includes('premier') && /\d+v/i.test(line)) {
-                    let name = line;
-
-                    // Încercăm să concatenăm cu linia următoare dacă pare continuare
-                    if (i + 1 < lines.length) {
-                        const nextLine = lines[i + 1].trim();
-                        if (nextLine && !nextLine.match(/^(buc|RON|Lei|\d+[.,]\d+|Total)/i)) {
-                            // Verificăm dacă linia următoare e continuare (nu e preț sau unitate)
-                            if (!nextLine.match(/^\d/) && nextLine.length > 3) {
-                                name = name + ' ' + nextLine;
-                            }
-                        }
+                    // Stop dacă linia următoare e preț, cantitate sau alt produs
+                    if (nextLine.match(/^[\d.,]+\s*(RON|Lei|buc|EUR)?$/i) ||
+                        nextLine.match(/^(Total|Subtotal|TVA)/i) ||
+                        nextLine.match(/^\d+\s*x\s*\d/) ||
+                        (nextLine.toLowerCase().includes('premier') && nextLine.toLowerCase().includes('electric'))) {
+                        break;
                     }
 
-                    // Curățăm numele
-                    name = name.replace(/\s+/g, ' ').trim();
-                    name = name.replace(/\d+[.,]\d+\s*(RON|Lei)?/g, '').trim();
-
-                    const normalizedName = name.toLowerCase().replace(/\s+/g, ' ');
-
-                    if (!seenProducts.has(normalizedName) && name.length > 10) {
-                        seenProducts.add(normalizedName);
-
-                        products.push({
-                            code: this._extractProductCode(name, text),
-                            name: name,
-                            quantity: 1
-                        });
+                    // Adăugăm linia dacă pare a fi continuare - doar cu spațiu, fără virgulă
+                    if (nextLine.length > 2 && !nextLine.match(/^[\d.,]+$/)) {
+                        fullName += ' ' + nextLine;
                     }
+
+                    // Verificăm dacă am ajuns la o denumire completă (are voltaj și culoare)
+                    if (/\d+V/i.test(fullName) &&
+                        /(alb|negru|rosu|roșu|albastru|galben|verde|gri|portocaliu|roz|mov|argintiu)/i.test(fullName)) {
+                        break;
+                    }
+
+                    j++;
                 }
-            }
-        }
 
-        // Metoda 3: Căutăm pattern simplu pentru "Premier" dacă tot nu am găsit
-        if (products.length === 0) {
-            const simplePattern = /(?:^|\s)(\S*Premier\S*[^.\n]{10,80})/gi;
+                // Curățăm numele - doar spații multiple
+                fullName = fullName.replace(/\s+/g, ' ').trim();
 
-            while ((match = simplePattern.exec(text)) !== null) {
-                let name = match[1].trim();
-                const normalizedName = name.toLowerCase().replace(/\s+/g, ' ');
+                const normalizedName = fullName.toLowerCase();
 
-                if (!seenProducts.has(normalizedName) && name.length > 15) {
+                // Verificăm să nu fie duplicat și să aibă minim 30 caractere
+                if (!seenProducts.has(normalizedName) && fullName.length >= 30) {
                     seenProducts.add(normalizedName);
+
                     products.push({
-                        code: 'PREMIER',
-                        name: name,
+                        code: this._extractProductCode(fullName, text),
+                        name: fullName,
                         quantity: 1
                     });
+
+                    console.log(`[Parser] Produs găsit: "${fullName}"`);
                 }
             }
         }
 
-        console.log(`[Parser] Produse extrase: ${products.length}`, products.map(p => p.name));
+        console.log(`[Parser] Total produse extrase: ${products.length}`);
         return products;
     }
 
     /**
-     * Extrage codul produsului din text sau generează unul
+     * Extrage codul produsului (EAN) din text
+     * Codul EAN are de obicei 13 cifre și apare aproape de numele produsului
      */
     _extractProductCode(productName, fullText) {
-        // Căutăm un cod care ar putea fi asociat cu acest produs
-        // Pattern pentru coduri de produs (litere + cifre)
-        const codePatterns = [
-            /([A-Z]{2,5}\d{3,10})/i,  // ex: PKF001234
-            /([A-Z]{2,10})/i           // ex: ATVPREMIER
-        ];
+        // 1. Căutăm codul EAN (13 cifre care încep cu 64274700 - codul Premier)
+        const eanPattern = /\b(64274700\d{5})\b/g;
+        const eanMatches = [...fullText.matchAll(eanPattern)];
 
-        // Extragem primul cuvânt din nume ca potențial cod
-        const firstWord = productName.split(/\s+/)[0].toUpperCase();
+        if (eanMatches.length > 0) {
+            // Dacă avem mai multe coduri EAN, încercăm să găsim cel mai apropiat de numele produsului
+            const productIndex = fullText.indexOf(productName.substring(0, 30));
 
-        if (firstWord.length >= 2 && firstWord.length <= 20) {
-            return firstWord;
+            if (productIndex !== -1 && eanMatches.length > 1) {
+                // Găsim codul cel mai apropiat de produs
+                let closestCode = eanMatches[0][1];
+                let closestDistance = Math.abs(fullText.indexOf(eanMatches[0][1]) - productIndex);
+
+                for (const match of eanMatches) {
+                    const codeIndex = fullText.indexOf(match[1]);
+                    const distance = Math.abs(codeIndex - productIndex);
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        closestCode = match[1];
+                    }
+                }
+                console.log(`[Parser] Cod EAN extras pentru "${productName.substring(0, 30)}...": ${closestCode}`);
+                return closestCode;
+            }
+
+            // Dacă avem un singur cod sau nu găsim produsul, returnăm primul
+            console.log(`[Parser] Cod EAN extras: ${eanMatches[0][1]}`);
+            return eanMatches[0][1];
         }
 
-        return 'PREMIER';
+        // 2. Căutăm orice cod de 13 cifre (format EAN standard)
+        const genericEanPattern = /\b(\d{13})\b/g;
+        const genericEanMatches = [...fullText.matchAll(genericEanPattern)];
+
+        if (genericEanMatches.length > 0) {
+            console.log(`[Parser] Cod EAN generic extras: ${genericEanMatches[0][1]}`);
+            return genericEanMatches[0][1];
+        }
+
+        // 3. Căutăm coduri de tip litere + cifre
+        const codePatterns = [
+            /([A-Z]{2,5}\d{3,10})/i,  // ex: PKF001234
+        ];
+
+        for (const pattern of codePatterns) {
+            const match = fullText.match(pattern);
+            if (match) {
+                console.log(`[Parser] Cod alfanumeric extras: ${match[1]}`);
+                return match[1];
+            }
+        }
+
+        // 4. Fallback: folosim primul cuvânt din nume
+        const firstWord = productName.split(/\s+/)[0].toUpperCase();
+        console.log(`[Parser] Fallback cod: ${firstWord}`);
+        return firstWord.length >= 2 ? firstWord : 'PREMIER';
     }
 
     /**
@@ -414,22 +429,47 @@ class InvoiceParserService {
         const matchedProducts = [];
 
         for (const invoiceProduct of invoiceProducts) {
+            console.log(`[Parser] Căutare produs: code="${invoiceProduct.code}", name="${invoiceProduct.name}"`);
+
             // Încercăm să găsim produsul în nomenclator după cod
             let localProduct = productsService.getProductByCode(invoiceProduct.code);
+            console.log(`[Parser] Căutare după cod exact:`, localProduct ? `GĂSIT: ${localProduct.smartbill_name}` : 'NEGĂSIT');
 
-            // Dacă nu găsim după cod exact, încercăm o căutare parțială
+            // Dacă nu găsim după cod exact, căutăm după denumire exactă
             if (!localProduct) {
                 const allProducts = productsService.getAllProducts(true);
+                const invoiceName = invoiceProduct.name.toLowerCase().trim();
+
+                console.log(`[Parser] Căutare produs după denumire exactă: "${invoiceName}"`);
+
+                // 1. Căutare EXACTĂ - denumirea din factură trebuie să fie identică cu cea din nomenclator
                 localProduct = allProducts.find(p =>
-                    p.smartbill_code.toLowerCase() === invoiceProduct.code.toLowerCase() ||
-                    p.smartbill_name.toLowerCase().includes(invoiceProduct.name.toLowerCase().substring(0, 20))
+                    p.smartbill_name.toLowerCase().trim() === invoiceName
                 );
+
+                // 2. Dacă nu găsim exact, căutăm dacă denumirea din nomenclator CONȚINE denumirea din factură
+                if (!localProduct) {
+                    localProduct = allProducts.find(p =>
+                        p.is_active === 1 &&
+                        p.smartbill_name.toLowerCase().includes(invoiceName)
+                    );
+                }
+
+                // 3. Sau invers - denumirea din factură conține denumirea din nomenclator
+                if (!localProduct) {
+                    localProduct = allProducts.find(p =>
+                        p.is_active === 1 &&
+                        invoiceName.includes(p.smartbill_name.toLowerCase().trim())
+                    );
+                }
+
+                console.log(`[Parser] Căutare după denumire:`, localProduct ? `GĂSIT: ${localProduct.smartbill_name}` : 'NEGĂSIT');
             }
 
             if (localProduct && localProduct.is_active === 1 && localProduct.is_new === 0) {
                 matchedProducts.push({
                     code: localProduct.smartbill_code,
-                    name: localProduct.smartbill_name,
+                    name: localProduct.display_name || localProduct.smartbill_name,
                     warranty_pf: localProduct.warranty_pf,
                     warranty_pj: localProduct.warranty_pj,
                     voltage_min: localProduct.voltage_min,

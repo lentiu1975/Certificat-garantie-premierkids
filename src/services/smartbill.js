@@ -173,10 +173,18 @@ class SmartBillService {
         await this._rateLimitWait();
 
         const fetch = require('node-fetch');
+
+        // Asigurăm că parametrii sunt string-uri
+        const seriesStr = String(series || '').trim();
+        const numberStr = String(number || '').trim();
+
+        // Log parametrii pentru debugging
+        console.log(`[SmartBill] getInvoicePdf apelat cu: series="${seriesStr}", number="${numberStr}"`);
+
         const queryParams = new URLSearchParams({
             cif: this.credentials.cif,
-            seriesname: series,
-            number: number
+            seriesname: seriesStr,
+            number: numberStr
         });
 
         const url = `${constants.SMARTBILL.BASE_URL}/invoice/pdf?${queryParams}`;
