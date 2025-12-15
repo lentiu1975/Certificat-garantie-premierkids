@@ -123,6 +123,33 @@ async function startServer() {
     const apiRoutes = require('./routes/api');
     const pageRoutes = require('./routes/pages');
 
+    // ================================================================
+    // ENDPOINT PUBLIC pentru certificate (fără autentificare)
+    // Necesar pentru ca eMAG API să poată descărca PDF-urile
+    // ================================================================
+    app.get('/public/certificates/:filename', (req, res) => {
+        const { filename } = req.params;
+
+        // Validare securitate - permite doar PDF
+        if (!filename.endsWith('.pdf')) {
+            return res.status(400).send('Format invalid');
+        }
+
+        // Sanitizare filename pentru a preveni path traversal
+        const sanitizedFilename = path.basename(filename);
+        const filePath = path.join(__dirname, '..', 'output', sanitizedFilename);
+
+        // Verifică dacă fișierul există
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).send('Certificat negăsit');
+        }
+
+        // Servește PDF-ul
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${sanitizedFilename}"`);
+        res.sendFile(filePath);
+    });
+
     // Endpoint de debug temporar (fără autentificare) pentru a vedea structura facturilor SmartBill
     app.get('/debug-invoices', async (req, res) => {
         try {

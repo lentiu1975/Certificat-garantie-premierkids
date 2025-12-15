@@ -46,12 +46,32 @@ module.exports = {
     },
 
     // Configurare eMAG Marketplace API
+    // Documentație: emag-marketplace-api-documentation-v4.5.0.docx
     EMAG: {
-        BASE_URL: 'https://marketplace.emag.ro/api-3',
+        BASE_URL: 'https://marketplace-api.emag.ro/api-3',
 
-        // Endpoint pentru încărcare documente
+        // Endpoint-uri disponibile
         ENDPOINTS: {
-            UPLOAD_DOCUMENT: '/order/attachments/save'
+            ORDER_READ: '/order/read',
+            ORDER_COUNT: '/order/count',
+            ATTACHMENTS_SAVE: '/order/attachments/save',
+            ATTACHMENTS_READ: '/order/attachments/read'
+        },
+
+        // Tipuri de atașamente (secțiunea 5.1.3)
+        ATTACHMENT_TYPES: {
+            INVOICE: 1,
+            WARRANTY: 3,
+            USER_MANUAL: 4,
+            USER_GUIDE: 8,
+            AWB: 10,
+            PROFORMA: 11
+        },
+
+        // Tipuri de comenzi
+        ORDER_TYPES: {
+            FULFILLED_BY_EMAG: 2,
+            FULFILLED_BY_SELLER: 3
         }
     },
 

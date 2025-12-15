@@ -34,6 +34,7 @@
     "sql.js": "^1.10.3"
   },
   "devDependencies": {
+    "adm-zip": "^0.5.16",
     "nodemon": "^3.0.2"
   },
   "engines": {
