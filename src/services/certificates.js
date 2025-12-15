@@ -143,10 +143,14 @@ class CertificatesService {
 
         if (emagOrderNumber && emagService.isConfigured()) {
             try {
-                const uploadResult = await emagService.uploadWarrantyCertificate(
+                // Construim URL-ul public pentru certificat
+                const publicBaseUrl = process.env.PUBLIC_URL || 'https://garantie-premierkids.lentiu.ro';
+                const pdfUrl = `${publicBaseUrl}/public/certificates/${savedPdf.filename}`;
+
+                const uploadResult = await emagService.uploadWarrantyForOrder(
                     emagOrderNumber,
-                    pdfBuffer,
-                    savedPdf.filename
+                    pdfUrl,
+                    `Certificat Garantie ${certificateData.invoiceNumber}`
                 );
                 emagUploaded = uploadResult.success;
                 if (!uploadResult.success) {
@@ -462,7 +466,40 @@ class CertificatesService {
             // 9. Salvăm PDF-ul pe disc
             const savedPdf = await pdfService.savePdf(certPdfBuffer, invoiceNumber);
 
-            // 10. Salvăm înregistrarea în baza de date
+            // 10. Încărcăm în eMAG dacă avem număr de comandă și serviciul e configurat
+            let emagUploaded = false;
+            let emagError = null;
+
+            if (emagOrderNumber && emagService.isConfigured()) {
+                try {
+                    // Construim URL-ul public pentru certificat
+                    // URL-ul public trebuie să fie accesibil din internet pentru ca eMAG să-l poată descărca
+                    const publicBaseUrl = process.env.PUBLIC_URL || 'https://garantie-premierkids.lentiu.ro';
+                    const pdfUrl = `${publicBaseUrl}/public/certificates/${savedPdf.filename}`;
+
+                    console.log(`[Certificates] Upload în eMAG: orderId=${emagOrderNumber}, pdfUrl=${pdfUrl}`);
+
+                    // Folosim metoda care încarcă automat pentru toate produsele din comandă
+                    const uploadResult = await emagService.uploadWarrantyForOrder(
+                        emagOrderNumber,
+                        pdfUrl,
+                        `Certificat Garantie ${invoiceNumber}`
+                    );
+
+                    emagUploaded = uploadResult.success;
+                    if (!uploadResult.success) {
+                        emagError = uploadResult.error;
+                        console.error(`[Certificates] Eroare upload eMAG: ${emagError}`);
+                    } else {
+                        console.log(`[Certificates] Upload eMAG reușit: ${uploadResult.message}`);
+                    }
+                } catch (error) {
+                    emagError = error.message;
+                    console.error(`[Certificates] Excepție upload eMAG: ${emagError}`);
+                }
+            }
+
+            // 11. Salvăm înregistrarea în baza de date
             this.saveCertificateRecord({
                 invoiceNumber: invoiceNumber,
                 invoiceDate: certificateData.invoiceDate,
@@ -470,7 +507,7 @@ class CertificatesService {
                 isVatPayer: isVatPayer,
                 products: productsWithWarranty,
                 emagOrderNumber: emagOrderNumber,
-                emagUploaded: false,
+                emagUploaded: emagUploaded,
                 pdfPath: savedPdf.path
             });
 
@@ -486,6 +523,8 @@ class CertificatesService {
                 pdfPath: savedPdf.path,
                 pdfFilename: savedPdf.filename,
                 emagOrderNumber: emagOrderNumber,
+                emagUploaded: emagUploaded,
+                emagError: emagError,
                 extractedData: {
                     rawProducts: invoiceData.products,
                     matchedProducts: matchedProducts
