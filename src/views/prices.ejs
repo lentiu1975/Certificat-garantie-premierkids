@@ -19,9 +19,6 @@
 
                 <!-- Acțiuni -->
                 <div class="btn-group">
-                    <button class="btn btn-outline-primary" id="generateGroupsBtn">
-                        <i class="bi bi-magic me-1"></i>Generează Grupuri
-                    </button>
                     <button class="btn btn-outline-success" id="exportBtn">
                         <i class="bi bi-download me-1"></i>Export
                     </button>
@@ -173,7 +170,7 @@
 
                 <div class="mt-3">
                     <h6>Produse incluse în grup</h6>
-                    <div id="groupProductsList" class="small text-muted" style="max-height: 100px; overflow-y: auto;"></div>
+                    <div id="groupProductsList" class="small" style="max-height: 200px; overflow-y: auto;"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -232,15 +229,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadChannels();
     await loadGroups();
 
-    // Event listeners
+    // Event listeners - butoane toolbar
     document.getElementById('refreshRatesBtn').addEventListener('click', fetchNewRates);
-    document.getElementById('generateGroupsBtn').addEventListener('click', generateGroups);
     document.getElementById('exportBtn').addEventListener('click', exportPrices);
     document.getElementById('doImportBtn').addEventListener('click', importPrices);
     document.getElementById('saveGroupBtn').addEventListener('click', saveGroup);
     document.getElementById('searchInput').addEventListener('input', filterTable);
     document.getElementById('filterStatus').addEventListener('change', filterTable);
     document.getElementById('csvFile').addEventListener('change', loadCsvFile);
+
+    // Event delegation pentru tabelul de prețuri (click pe rânduri/butoane edit)
+    document.getElementById('pricesTable').addEventListener('click', function(e) {
+        // Găsim butonul sau celula click-uită
+        const editBtn = e.target.closest('button[data-edit-group]');
+        const priceCell = e.target.closest('td.price-cell');
+        const row = e.target.closest('tr[data-group-id]');
+
+        if (editBtn) {
+            const groupId = parseInt(editBtn.dataset.editGroup);
+            editGroup(groupId);
+        } else if (priceCell && row) {
+            const groupId = parseInt(row.dataset.groupId);
+            editGroup(groupId);
+        }
+    });
 });
 
 async function loadExchangeRates() {
@@ -311,9 +323,6 @@ function renderTableBody() {
                 <td colspan="${2 + channels.length}" class="text-center py-5">
                     <i class="bi bi-inbox fs-1 text-muted"></i>
                     <p class="mt-2 text-muted">Nu există grupuri de produse.</p>
-                    <button class="btn btn-primary" onclick="generateGroups()">
-                        <i class="bi bi-magic me-2"></i>Generează Grupuri Automat
-                    </button>
                 </td>
             </tr>
         `;
@@ -329,12 +338,12 @@ function renderTableBody() {
                             <strong>${group.group_name}</strong>
                             <small class="d-block text-muted">${group.products_count || group.smartbill_codes?.length || 0} produse</small>
                         </div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="editGroup(${group.id})">
+                        <button class="btn btn-sm btn-outline-primary" data-edit-group="${group.id}">
                             <i class="bi bi-pencil"></i>
                         </button>
                     </div>
                 </td>
-                <td class="text-end price-cell ${!group.base_price ? 'no-price' : ''}" onclick="editGroup(${group.id})">
+                <td class="text-end price-cell ${!group.base_price ? 'no-price' : ''}">
                     ${group.base_price ? formatPrice(group.base_price, 'RON') : '-'}
                 </td>
         `;
@@ -356,7 +365,7 @@ function renderTableBody() {
                 }
             }
 
-            row += `<td class="text-end price-cell ${cellClass}" onclick="editGroup(${group.id})">${cellContent}</td>`;
+            row += `<td class="text-end price-cell ${cellClass}">${cellContent}</td>`;
         });
 
         row += '</tr>';
@@ -435,29 +444,6 @@ async function fetchNewRates() {
     }
 }
 
-async function generateGroups() {
-    const btn = document.getElementById('generateGroupsBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Se generează...';
-
-    try {
-        const response = await fetch('/api/product-groups/generate', { method: 'POST' });
-        const data = await response.json();
-
-        if (data.success) {
-            showAlert(data.message, 'success');
-            await loadGroups();
-        } else {
-            showAlert(data.error || 'Eroare la generarea grupurilor', 'danger');
-        }
-    } catch (error) {
-        showAlert('Eroare: ' + error.message, 'danger');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generează Grupuri';
-    }
-}
-
 function exportPrices() {
     window.location.href = '/api/prices/export';
 }
@@ -525,10 +511,20 @@ async function editGroup(groupId) {
     try {
         const response = await fetch(`/api/product-groups/${groupId}/products`);
         const data = await response.json();
-        document.getElementById('groupProductsList').innerHTML =
-            data.products.map(p => `<span class="badge bg-light text-dark me-1 mb-1">${p.smartbill_name}</span>`).join('');
+        document.getElementById('groupProductsList').innerHTML = data.products.length > 0
+            ? `<table class="table table-sm table-borderless mb-0">
+                <tbody>
+                    ${data.products.map(p => `
+                        <tr>
+                            <td class="text-muted" style="width: 120px;"><code>${p.smartbill_code}</code></td>
+                            <td>${p.smartbill_name}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+               </table>`
+            : '<em class="text-muted">Nu există produse asociate</em>';
     } catch (e) {
-        document.getElementById('groupProductsList').innerHTML = '<em>Nu s-au putut încărca produsele</em>';
+        document.getElementById('groupProductsList').innerHTML = '<em class="text-danger">Nu s-au putut încărca produsele</em>';
     }
 
     // Render tabelul de prețuri

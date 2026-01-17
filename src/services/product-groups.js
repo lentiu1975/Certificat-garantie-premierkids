@@ -8,19 +8,17 @@ const { db, saveDatabase } = require('../config/database');
 class ProductGroupsService {
     constructor() {
         // Cuvinte care indică variante (culori, dimensiuni) - se oprește gruparea la aceste cuvinte
+        // DOAR culori - fără dimensiuni sau alte variante care pot fi parte din denumirea produsului
         this.variantWords = [
-            // Culori în română
+            // Culori în română (cu și fără diacritice)
             'rosu', 'albastru', 'verde', 'negru', 'alb', 'roz', 'galben',
             'portocaliu', 'mov', 'gri', 'maro', 'bej', 'turcoaz', 'argintiu',
             'auriu', 'crem', 'bordo', 'visiniu', 'lila', 'caramiziu',
+            'camuflaj', 'army', 'militar', 'kaki', 'khaki',
             // Culori în engleză
             'red', 'blue', 'green', 'black', 'white', 'pink', 'yellow',
             'orange', 'purple', 'grey', 'gray', 'brown', 'silver', 'gold',
-            'beige', 'turquoise', 'burgundy', 'cream',
-            // Variante dimensiune
-            '2x', '4x', '6x', 'mare', 'mic', 'mediu', 'xl', 'xxl', 'xs',
-            // Alte variante comune
-            'nou', 'new', 'editie', 'edition', 'limited', 'special'
+            'beige', 'turquoise', 'burgundy', 'cream'
         ];
     }
 
@@ -147,17 +145,31 @@ class ProductGroupsService {
 
     /**
      * Generează automat grupuri din produsele active
-     * Algoritm: grupează produsele după denumire până la cuvântul de variație (culoare, etc.)
+     * ATENȚIE: Șterge TOATE grupurile existente și le recreează!
      */
     generateGroupsFromProducts() {
+        // Șterge toate grupurile existente
+        console.log('[ProductGroups] Ștergem toate grupurile existente...');
+        db.prepare('DELETE FROM product_groups').run();
+        db.prepare('DELETE FROM group_prices').run();
+
         // Obține toate produsele active din nomenclator
         const productsStmt = db.prepare(`
             SELECT smartbill_code, smartbill_name
             FROM products
-            WHERE is_active = 1 AND is_service = 0
+            WHERE is_active = 1 AND (is_service = 0 OR is_service IS NULL)
             ORDER BY smartbill_name
         `);
         const products = productsStmt.all();
+
+        console.log(`[ProductGroups] Found ${products.length} active products for grouping`);
+
+        // DEBUG: Afișăm primele 10 produse pentru a vedea denumirile
+        console.log('[ProductGroups] Primele 10 produse:');
+        products.slice(0, 10).forEach((p, i) => {
+            const extracted = this._extractGroupName(p.smartbill_name);
+            console.log(`  ${i+1}. "${p.smartbill_name}" => "${extracted}"`);
+        });
 
         if (products.length === 0) {
             return { total: 0, created: 0, message: 'Nu există produse active în nomenclator' };
@@ -181,66 +193,60 @@ class ProductGroupsService {
 
         // Salvează grupurile în baza de date
         let created = 0;
-        let updated = 0;
 
         for (const [name, data] of groupsMap) {
-            // Verifică dacă grupul există deja
-            const existing = this.getGroupByName(name);
-
-            if (existing) {
-                // Actualizează codurile (adaugă noi, păstrează prețul)
-                const allCodes = [...new Set([...existing.smartbill_codes, ...data.codes])];
-                this.updateGroup(existing.id, { smartbill_codes: allCodes });
-                updated++;
-            } else {
-                // Creează grup nou
-                this.createGroup({
-                    group_name: name,
-                    smartbill_codes: data.codes,
-                    base_price: 0
-                });
-                created++;
-            }
+            this.createGroup({
+                group_name: name,
+                smartbill_codes: data.codes,
+                base_price: 0
+            });
+            created++;
         }
 
         return {
             total: groupsMap.size,
             created,
-            updated,
-            message: `${created} grupuri noi create, ${updated} actualizate din ${groupsMap.size} identificate`
+            message: `${created} grupuri create din ${groupsMap.size} identificate`
         };
     }
 
     /**
      * Extrage numele grupului din denumirea produsului
-     * Elimină cuvintele care indică variante (culori, dimensiuni)
+     * Elimină doar ultimele cuvinte care indică variante (culori, dimensiuni)
+     * Exemplu: "ATV electric 4x4 Premier Desert, 12V, roti cauciuc EVA, MP3, albastru"
+     *       -> "ATV electric 4x4 Premier Desert, 12V, roti cauciuc EVA, MP3,"
      */
     _extractGroupName(productName) {
-        const words = productName.split(/\s+/);
-        const groupNameWords = [];
+        // Curăță virgula finală și spațiile
+        let name = productName.trim().replace(/,\s*$/, '');
+        const words = name.split(/\s+/);
 
-        for (const word of words) {
-            const wordClean = word.toLowerCase()
-                .replace(/[()[\]{}.,;:!?'"]/g, '') // Curăță punctuație
-                .replace(/^\d+$/, ''); // Elimină numere izolate
+        // Parcurgem de la final și eliminăm cuvintele de variantă
+        let endIndex = words.length;
 
-            // Verifică dacă cuvântul este o variantă
-            const isVariant = this._isVariantWord(wordClean);
+        for (let i = words.length - 1; i >= 0; i--) {
+            const wordClean = words[i].toLowerCase()
+                .replace(/[()[\]{}.,;:!?'"]/g, ''); // Curăță punctuație
 
-            if (isVariant) {
-                break; // Oprește la primul cuvânt de variantă
+            if (this._isVariantWord(wordClean)) {
+                endIndex = i; // Tăiem de aici
+            } else {
+                // Nu mai e variantă, ne oprim
+                break;
             }
-
-            groupNameWords.push(word);
         }
+
+        // Luăm cuvintele până la endIndex
+        const groupNameWords = words.slice(0, endIndex);
 
         // Minim 2 cuvinte pentru un grup valid
         if (groupNameWords.length < 2) {
-            // Folosește primele 3-4 cuvinte
-            return words.slice(0, Math.min(4, words.length)).join(' ').trim();
+            // Folosește primele cuvinte (fără ultimul dacă e culoare)
+            return words.slice(0, Math.max(2, words.length - 1)).join(' ').trim();
         }
 
-        return groupNameWords.join(' ').trim();
+        // Curăță virgula finală dacă există
+        return groupNameWords.join(' ').trim().replace(/,\s*$/, '');
     }
 
     /**
@@ -291,7 +297,7 @@ class ProductGroupsService {
         const withPriceStmt = db.prepare('SELECT COUNT(*) as count FROM product_groups WHERE is_active = 1 AND base_price > 0');
         const withPrice = withPriceStmt.get().count;
 
-        const totalProductsStmt = db.prepare('SELECT COUNT(*) as count FROM products WHERE is_active = 1 AND is_service = 0');
+        const totalProductsStmt = db.prepare('SELECT COUNT(*) as count FROM products WHERE is_active = 1 AND (is_service = 0 OR is_service IS NULL)');
         const totalProducts = totalProductsStmt.get().count;
 
         return {

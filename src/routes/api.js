@@ -825,6 +825,7 @@ router.get('/product-groups/stats', (req, res) => {
 
 /**
  * POST /api/product-groups/generate - Generare automată grupuri din produse
+ * ATENȚIE: Șterge toate grupurile existente și le recreează!
  */
 router.post('/product-groups/generate', requireAdmin, (req, res) => {
     try {

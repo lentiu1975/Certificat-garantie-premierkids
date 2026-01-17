@@ -53,17 +53,9 @@ async function startServer() {
     // Inițializare Express
     const app = express();
 
-    // Middleware de securitate
+    // Middleware de securitate - CSP dezactivat pentru compatibilitate cu extensii browser
     app.use(helmet({
-        contentSecurityPolicy: {
-            directives: {
-                defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-                scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-                fontSrc: ["'self'", "https://cdn.jsdelivr.net"],
-                imgSrc: ["'self'", "data:"]
-            }
-        }
+        contentSecurityPolicy: false
     }));
 
     // Rate limiting
@@ -164,6 +156,39 @@ async function startServer() {
             res.send('Parola resetata! Username: admin, Parola: admin123 - STERGE ACEST ENDPOINT!');
         } catch (error) {
             res.status(500).send('Eroare: ' + error.message);
+        }
+    });
+
+    // Endpoint de debug pentru a vedea cum se grupează produsele
+    app.get('/debug-grouping', async (req, res) => {
+        try {
+            const { db } = require('./config/database');
+            const productGroupsService = require('./services/product-groups');
+
+            // Obține primele 20 produse
+            const productsStmt = db.prepare(`
+                SELECT smartbill_code, smartbill_name
+                FROM products
+                WHERE is_active = 1 AND (is_service = 0 OR is_service IS NULL)
+                ORDER BY smartbill_name
+                LIMIT 20
+            `);
+            const products = productsStmt.all();
+
+            // Testăm algoritmul de grupare
+            const results = products.map(p => ({
+                code: p.smartbill_code,
+                original: p.smartbill_name,
+                extracted: productGroupsService._extractGroupName(p.smartbill_name)
+            }));
+
+            res.json({
+                success: true,
+                totalProducts: products.length,
+                results
+            });
+        } catch (error) {
+            res.status(500).json({ error: error.message, stack: error.stack });
         }
     });
 
