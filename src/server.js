@@ -74,13 +74,15 @@ async function startServer() {
     });
     app.use(limiter);
 
-    // Rate limiting mai strict pentru login
-    const loginLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 10,
-        message: { error: 'Prea multe încercări de autentificare. Încercați din nou în 15 minute.' }
-    });
-    app.use('/auth/login', loginLimiter);
+    // Rate limiting mai strict pentru login (dezactivat în development)
+    if (process.env.NODE_ENV === 'production') {
+        const loginLimiter = rateLimit({
+            windowMs: 15 * 60 * 1000,
+            max: 10,
+            message: { error: 'Prea multe încercări de autentificare. Încercați din nou în 15 minute.' }
+        });
+        app.use('/auth/login', loginLimiter);
+    }
 
     // Parsare body
     app.use(express.json({ limit: '10mb' }));
