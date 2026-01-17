@@ -202,6 +202,43 @@ function createTables() {
         db.run("INSERT OR IGNORE INTO app_config (key, value) VALUES ('smartbill_configured', '0')");
         db.run("INSERT OR IGNORE INTO app_config (key, value) VALUES ('emag_configured', '0')");
     }
+
+    // Seed canale de vânzare implicite
+    seedDefaultChannels();
+}
+
+/**
+ * Creează canalele de vânzare implicite dacă nu există
+ * Folosește INSERT OR IGNORE pentru a nu duplica
+ */
+function seedDefaultChannels() {
+    const defaults = [
+        { name: 'Premierkids', currency: 'RON', vat_rate: 19, show_without_vat: 0, display_order: 1 },
+        { name: 'Magazinul de masinute', currency: 'RON', vat_rate: 19, show_without_vat: 0, display_order: 2 },
+        { name: 'eMag', currency: 'RON', vat_rate: 19, show_without_vat: 1, display_order: 3 },
+        { name: 'Altex', currency: 'RON', vat_rate: 19, show_without_vat: 0, display_order: 4 },
+        { name: 'Trendyol', currency: 'RON', vat_rate: 19, show_without_vat: 0, display_order: 5 },
+        { name: 'eMag HU', currency: 'HUF', vat_rate: 21, show_without_vat: 1, display_order: 6 }
+    ];
+
+    let created = 0;
+    for (const channel of defaults) {
+        try {
+            db.run(
+                `INSERT OR IGNORE INTO price_channels (name, currency, vat_rate, show_without_vat, display_order) VALUES (?, ?, ?, ?, ?)`,
+                [channel.name, channel.currency, channel.vat_rate, channel.show_without_vat, channel.display_order]
+            );
+            created++;
+        } catch (e) {
+            // Canal există deja
+        }
+    }
+
+    const checkChannels = db.exec("SELECT COUNT(*) as count FROM price_channels");
+    const count = checkChannels[0]?.values[0]?.[0] || 0;
+    if (count > 0) {
+        console.log(`✓ Canale de vânzare: ${count} canale active`);
+    }
 }
 
 /**

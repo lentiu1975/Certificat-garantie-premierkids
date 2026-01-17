@@ -802,15 +802,19 @@ router.post('/price-channels/seed', requireAdmin, (req, res) => {
 
 /**
  * GET /api/product-groups - Listă grupuri de produse
+ * Query params:
+ *   - withPrices: true/false - include prețurile
+ *   - includeInactive: true/false - include și grupurile inactive (default: false)
  */
 router.get('/product-groups', (req, res) => {
     const withPrices = req.query.withPrices === 'true';
+    const includeInactive = req.query.includeInactive === 'true';
 
     if (withPrices) {
-        const groups = pricesService.getAllGroupsWithPrices();
+        const groups = pricesService.getAllGroupsWithPrices(includeInactive);
         res.json({ groups, count: groups.length });
     } else {
-        const groups = productGroupsService.getAllGroups();
+        const groups = productGroupsService.getAllGroups(includeInactive);
         res.json({ groups, count: groups.length });
     }
 });
@@ -831,6 +835,30 @@ router.post('/product-groups/generate', requireAdmin, (req, res) => {
     try {
         const result = productGroupsService.generateGroupsFromProducts();
         res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/product-groups - Creare grup nou
+ */
+router.post('/product-groups', [
+    body('group_name').trim().notEmpty().withMessage('Numele grupului este obligatoriu'),
+    body('base_price').optional().isFloat({ min: 0 }).withMessage('Prețul de bază trebuie să fie pozitiv')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const group = productGroupsService.createGroup({
+            group_name: req.body.group_name,
+            base_price: parseFloat(req.body.base_price) || 0,
+            smartbill_codes: []
+        });
+        res.json({ success: true, group });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
@@ -889,11 +917,35 @@ router.post('/product-groups/:id/prices', [
 });
 
 /**
- * DELETE /api/product-groups/:id - Ștergere grup
+ * DELETE /api/product-groups/:id - Dezactivare grup (soft delete)
  */
 router.delete('/product-groups/:id', requireAdmin, (req, res) => {
     try {
         const result = productGroupsService.deleteGroup(parseInt(req.params.id));
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/product-groups/:id/toggle-active - Toggle activ/inactiv
+ */
+router.post('/product-groups/:id/toggle-active', (req, res) => {
+    try {
+        const result = productGroupsService.toggleActive(parseInt(req.params.id));
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/product-groups/:id/permanent - Ștergere permanentă (EOL)
+ */
+router.delete('/product-groups/:id/permanent', requireAdmin, (req, res) => {
+    try {
+        const result = productGroupsService.hardDeleteGroup(parseInt(req.params.id));
         res.json(result);
     } catch (error) {
         res.status(400).json({ error: error.message });
@@ -907,6 +959,50 @@ router.get('/product-groups/:id/products', (req, res) => {
     try {
         const products = productGroupsService.getProductsForGroup(parseInt(req.params.id));
         res.json({ products, count: products.length });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/product-groups/:id/add-product - Adaugă un produs la grup
+ */
+router.post('/product-groups/:id/add-product', [
+    body('smartbill_code').trim().notEmpty().withMessage('Codul SmartBill este obligatoriu')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const result = productGroupsService.addProductToGroup(
+            parseInt(req.params.id),
+            req.body.smartbill_code.trim()
+        );
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/product-groups/:id/remove-product - Elimină un produs din grup
+ */
+router.post('/product-groups/:id/remove-product', [
+    body('smartbill_code').trim().notEmpty().withMessage('Codul SmartBill este obligatoriu')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const result = productGroupsService.removeProductFromGroup(
+            parseInt(req.params.id),
+            req.body.smartbill_code.trim()
+        );
+        res.json(result);
     } catch (error) {
         res.status(400).json({ error: error.message });
     }

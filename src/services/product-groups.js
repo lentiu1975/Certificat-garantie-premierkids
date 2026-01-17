@@ -129,7 +129,7 @@ class ProductGroupsService {
     }
 
     /**
-     * Șterge un grup (soft delete)
+     * Dezactivează un grup (soft delete)
      */
     deleteGroup(id) {
         const group = this.getGroupById(id);
@@ -140,7 +140,59 @@ class ProductGroupsService {
         const stmt = db.prepare('UPDATE product_groups SET is_active = 0 WHERE id = ?');
         stmt.run(id);
 
-        return { success: true, message: `Grupul "${group.group_name}" a fost șters` };
+        return { success: true, message: `Grupul "${group.group_name}" a fost dezactivat` };
+    }
+
+    /**
+     * Activează un grup
+     */
+    activateGroup(id) {
+        const group = this.getGroupById(id);
+        if (!group) {
+            throw new Error('Grupul nu a fost găsit');
+        }
+
+        const stmt = db.prepare('UPDATE product_groups SET is_active = 1 WHERE id = ?');
+        stmt.run(id);
+
+        return { success: true, message: `Grupul "${group.group_name}" a fost activat` };
+    }
+
+    /**
+     * Toggle activ/inactiv
+     */
+    toggleActive(id) {
+        const group = this.getGroupById(id);
+        if (!group) {
+            throw new Error('Grupul nu a fost găsit');
+        }
+
+        const newStatus = group.is_active ? 0 : 1;
+        const stmt = db.prepare('UPDATE product_groups SET is_active = ? WHERE id = ?');
+        stmt.run(newStatus, id);
+
+        return {
+            success: true,
+            is_active: newStatus,
+            message: `Grupul "${group.group_name}" a fost ${newStatus ? 'activat' : 'dezactivat'}`
+        };
+    }
+
+    /**
+     * Șterge permanent un grup (hard delete) - pentru produse EOL
+     */
+    hardDeleteGroup(id) {
+        const group = this.getGroupById(id);
+        if (!group) {
+            throw new Error('Grupul nu a fost găsit');
+        }
+
+        // Șterge prețurile asociate
+        db.prepare('DELETE FROM group_prices WHERE group_id = ?').run(id);
+        // Șterge grupul
+        db.prepare('DELETE FROM product_groups WHERE id = ?').run(id);
+
+        return { success: true, message: `Grupul "${group.group_name}" a fost șters permanent` };
     }
 
     /**
@@ -266,6 +318,81 @@ class ProductGroupsService {
             if (wordLower.endsWith(variant) && wordLower.length <= variant.length + 3) return true;
             return false;
         });
+    }
+
+    /**
+     * Adaugă un produs la un grup (după cod SmartBill)
+     */
+    addProductToGroup(groupId, smartbillCode) {
+        const group = this.getGroupById(groupId);
+        if (!group) {
+            throw new Error('Grupul nu a fost găsit');
+        }
+
+        // Verifică dacă produsul există în nomenclator
+        const productStmt = db.prepare('SELECT * FROM products WHERE smartbill_code = ?');
+        const product = productStmt.get(smartbillCode);
+        if (!product) {
+            throw new Error(`Produsul cu codul "${smartbillCode}" nu există în nomenclator`);
+        }
+
+        // Verifică dacă produsul e deja în grup
+        if (group.smartbill_codes.includes(smartbillCode)) {
+            throw new Error(`Produsul "${smartbillCode}" este deja în acest grup`);
+        }
+
+        // Adaugă codul la lista de coduri
+        const newCodes = [...group.smartbill_codes, smartbillCode];
+
+        const stmt = db.prepare(`
+            UPDATE product_groups
+            SET smartbill_codes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `);
+        stmt.run(JSON.stringify(newCodes), groupId);
+
+        return {
+            success: true,
+            product: product,
+            message: `Produsul "${product.smartbill_name}" a fost adăugat la grup`
+        };
+    }
+
+    /**
+     * Elimină un produs din grup (după cod SmartBill)
+     */
+    removeProductFromGroup(groupId, smartbillCode) {
+        const group = this.getGroupById(groupId);
+        if (!group) {
+            throw new Error('Grupul nu a fost găsit');
+        }
+
+        // Verifică dacă produsul e în grup
+        if (!group.smartbill_codes.includes(smartbillCode)) {
+            throw new Error(`Produsul "${smartbillCode}" nu este în acest grup`);
+        }
+
+        // Nu permite eliminarea dacă e ultimul produs
+        if (group.smartbill_codes.length <= 1) {
+            throw new Error('Nu poți elimina ultimul produs din grup. Șterge grupul dacă nu mai e necesar.');
+        }
+
+        // Elimină codul din lista de coduri
+        const newCodes = group.smartbill_codes.filter(code => code !== smartbillCode);
+
+        const stmt = db.prepare(`
+            UPDATE product_groups
+            SET smartbill_codes = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `);
+        stmt.run(JSON.stringify(newCodes), groupId);
+
+        return {
+            success: true,
+            message: `Produsul "${smartbillCode}" a fost eliminat din grup`
+        };
     }
 
     /**
