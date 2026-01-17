@@ -292,17 +292,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterPrice').addEventListener('change', filterTable);
     document.getElementById('csvFile').addEventListener('change', loadCsvFile);
 
-    // Fix pentru input în modal - dezactivăm enforceFocus care blochează editarea
+    // Fix pentru input în modal
     const editGroupModal = document.getElementById('editGroupModal');
+    const nameInput = document.getElementById('editGroupName');
 
-    // Dezactivăm focus trap-ul Bootstrap care poate bloca inputurile
+    // Oprește Bootstrap din a captura tastele în modal
+    editGroupModal.addEventListener('keydown', function(e) {
+        // Permite toate tastele în inputuri
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+            e.stopPropagation();
+        }
+    }, true);
+
+    // După ce modalul e complet deschis, dăm focus pe câmpul de nume
     editGroupModal.addEventListener('shown.bs.modal', function(e) {
-        // Forțăm toate inputurile să fie editabile
-        this.querySelectorAll('input:not([readonly])').forEach(input => {
-            input.removeAttribute('disabled');
-        });
-        // După ce modalul e complet deschis, dăm focus pe câmpul de nume
-        const nameInput = document.getElementById('editGroupName');
         nameInput.focus();
         nameInput.select();
     });
