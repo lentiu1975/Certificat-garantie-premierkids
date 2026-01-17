@@ -586,4 +586,416 @@ router.put('/config/:key', requireAdmin, (req, res) => {
     res.json({ success: true });
 });
 
+// ============================================
+// MANAGEMENT UTILIZATORI
+// ============================================
+
+const {
+    getAllUsers,
+    getUserById,
+    createUser,
+    updateUser,
+    resetPassword,
+    deleteUser
+} = require('../middleware/auth');
+
+/**
+ * GET /api/users - Lista utilizatori (doar admin)
+ */
+router.get('/users', requireAdmin, (req, res) => {
+    const users = getAllUsers();
+    res.json({ success: true, users });
+});
+
+/**
+ * POST /api/users - Creare utilizator nou (doar admin)
+ */
+router.post('/users', requireAdmin, [
+    body('username').trim().isLength({ min: 3 }).withMessage('Username-ul trebuie să aibă minim 3 caractere'),
+    body('password').isLength({ min: 8 }).withMessage('Parola trebuie să aibă minim 8 caractere'),
+    body('isAdmin').optional().isBoolean().withMessage('isAdmin trebuie să fie boolean')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+
+    try {
+        const { username, password, isAdmin } = req.body;
+        const result = await createUser(username, password, isAdmin || false);
+        const user = getUserById(result.userId);
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * PUT /api/users/:id - Editare utilizator (doar admin)
+ */
+router.put('/users/:id', requireAdmin, [
+    body('username').optional().trim().isLength({ min: 3 }).withMessage('Username-ul trebuie să aibă minim 3 caractere'),
+    body('isAdmin').optional().isBoolean().withMessage('isAdmin trebuie să fie boolean')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+
+    try {
+        const user = await updateUser(parseInt(req.params.id), req.body);
+        res.json({ success: true, user });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/users/:id/reset-password - Resetare parolă (doar admin)
+ */
+router.post('/users/:id/reset-password', requireAdmin, [
+    body('newPassword').isLength({ min: 8 }).withMessage('Parola trebuie să aibă minim 8 caractere')
+], async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, error: errors.array()[0].msg });
+    }
+
+    try {
+        await resetPassword(parseInt(req.params.id), req.body.newPassword);
+        res.json({ success: true, message: 'Parola a fost resetată cu succes' });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/users/:id - Ștergere utilizator (doar admin)
+ */
+router.delete('/users/:id', requireAdmin, (req, res) => {
+    try {
+        const result = deleteUser(parseInt(req.params.id), req.session.userId);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+// ============================================
+// MODUL PREȚURI - Canale de Vânzare
+// ============================================
+
+const priceChannelsService = require('../services/price-channels');
+const productGroupsService = require('../services/product-groups');
+const pricesService = require('../services/prices');
+const exchangeRatesService = require('../services/exchange-rates');
+
+/**
+ * GET /api/price-channels - Listă canale de vânzare
+ */
+router.get('/price-channels', (req, res) => {
+    const includeInactive = req.query.includeInactive === 'true';
+    const channels = priceChannelsService.getAllChannels(includeInactive);
+    res.json({ channels, count: channels.length });
+});
+
+/**
+ * POST /api/price-channels - Adaugă canal nou
+ */
+router.post('/price-channels', requireAdmin, [
+    body('name').trim().notEmpty().withMessage('Numele canalului este obligatoriu'),
+    body('currency').isIn(['RON', 'EUR', 'HUF', 'USD']).withMessage('Valută invalidă'),
+    body('vat_rate').isFloat({ min: 0, max: 100 }).withMessage('TVA trebuie să fie între 0 și 100')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const channel = priceChannelsService.createChannel(req.body);
+        res.json({ success: true, channel });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * PUT /api/price-channels/:id - Editează canal
+ */
+router.put('/price-channels/:id', requireAdmin, [
+    body('name').optional().trim().notEmpty().withMessage('Numele nu poate fi gol'),
+    body('currency').optional().isIn(['RON', 'EUR', 'HUF', 'USD']).withMessage('Valută invalidă'),
+    body('vat_rate').optional().isFloat({ min: 0, max: 100 }).withMessage('TVA trebuie să fie între 0 și 100')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const channel = priceChannelsService.updateChannel(parseInt(req.params.id), req.body);
+        res.json({ success: true, channel });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/price-channels/:id - Dezactivează canal
+ */
+router.delete('/price-channels/:id', requireAdmin, (req, res) => {
+    try {
+        const result = priceChannelsService.deleteChannel(parseInt(req.params.id));
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * PUT /api/price-channels/:id/activate - Reactivează canal
+ */
+router.put('/price-channels/:id/activate', requireAdmin, (req, res) => {
+    try {
+        const channel = priceChannelsService.activateChannel(parseInt(req.params.id));
+        res.json({ success: true, channel });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * PUT /api/price-channels/reorder - Reordonare canale
+ */
+router.put('/price-channels/reorder', requireAdmin, [
+    body('orderedIds').isArray().withMessage('Lista de ID-uri este obligatorie')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const channels = priceChannelsService.reorderChannels(req.body.orderedIds);
+        res.json({ success: true, channels });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/price-channels/seed - Inserează canalele implicite
+ */
+router.post('/price-channels/seed', requireAdmin, (req, res) => {
+    try {
+        const result = priceChannelsService.seedDefaultChannels();
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// ============================================
+// MODUL PREȚURI - Grupuri de Produse
+// ============================================
+
+/**
+ * GET /api/product-groups - Listă grupuri de produse
+ */
+router.get('/product-groups', (req, res) => {
+    const withPrices = req.query.withPrices === 'true';
+
+    if (withPrices) {
+        const groups = pricesService.getAllGroupsWithPrices();
+        res.json({ groups, count: groups.length });
+    } else {
+        const groups = productGroupsService.getAllGroups();
+        res.json({ groups, count: groups.length });
+    }
+});
+
+/**
+ * GET /api/product-groups/stats - Statistici grupuri
+ */
+router.get('/product-groups/stats', (req, res) => {
+    const stats = productGroupsService.getStats();
+    res.json(stats);
+});
+
+/**
+ * POST /api/product-groups/generate - Generare automată grupuri din produse
+ */
+router.post('/product-groups/generate', requireAdmin, (req, res) => {
+    try {
+        const result = productGroupsService.generateGroupsFromProducts();
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/product-groups/:id - Obține un grup
+ */
+router.get('/product-groups/:id', (req, res) => {
+    const group = productGroupsService.getGroupById(parseInt(req.params.id));
+    if (!group) {
+        return res.status(404).json({ error: 'Grupul nu a fost găsit' });
+    }
+
+    const prices = pricesService.getPricesByGroup(group.id);
+    res.json({ group, prices });
+});
+
+/**
+ * PUT /api/product-groups/:id - Editare grup
+ */
+router.put('/product-groups/:id', [
+    body('group_name').optional().trim().notEmpty().withMessage('Numele grupului nu poate fi gol'),
+    body('base_price').optional().isFloat({ min: 0 }).withMessage('Prețul de bază trebuie să fie pozitiv')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const group = productGroupsService.updateGroup(parseInt(req.params.id), req.body);
+        res.json({ success: true, group });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/product-groups/:id/prices - Salvare prețuri pentru un grup
+ */
+router.post('/product-groups/:id/prices', [
+    body('prices').isArray().withMessage('Lista de prețuri este obligatorie')
+], (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ error: errors.array()[0].msg });
+    }
+
+    try {
+        const results = pricesService.setBulkPrices(parseInt(req.params.id), req.body.prices);
+        res.json({ success: true, updated: results.length });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * DELETE /api/product-groups/:id - Ștergere grup
+ */
+router.delete('/product-groups/:id', requireAdmin, (req, res) => {
+    try {
+        const result = productGroupsService.deleteGroup(parseInt(req.params.id));
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/product-groups/:id/products - Produsele dintr-un grup
+ */
+router.get('/product-groups/:id/products', (req, res) => {
+    try {
+        const products = productGroupsService.getProductsForGroup(parseInt(req.params.id));
+        res.json({ products, count: products.length });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+// ============================================
+// MODUL PREȚURI - Curs Valutar
+// ============================================
+
+/**
+ * GET /api/exchange-rates - Cursuri valutare curente
+ */
+router.get('/exchange-rates', (req, res) => {
+    const rates = exchangeRatesService.getCurrentRates();
+    res.json({ rates });
+});
+
+/**
+ * POST /api/exchange-rates/fetch - Preia cursuri de la BNR
+ */
+router.post('/exchange-rates/fetch', requireAdmin, async (req, res) => {
+    try {
+        const result = await exchangeRatesService.fetchFromBnr();
+        res.json(result);
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/exchange-rates/history/:currency - Istoric curs valutar
+ */
+router.get('/exchange-rates/history/:currency', (req, res) => {
+    const days = parseInt(req.query.days) || 30;
+    const history = exchangeRatesService.getRatesHistory(req.params.currency, days);
+    res.json({ currency: req.params.currency, history });
+});
+
+// ============================================
+// MODUL PREȚURI - Import/Export
+// ============================================
+
+/**
+ * GET /api/prices/export - Export prețuri în CSV
+ */
+router.get('/prices/export', (req, res) => {
+    try {
+        const csv = pricesService.exportToCsv();
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="preturi_${new Date().toISOString().split('T')[0]}.csv"`);
+        res.send('\ufeff' + csv); // BOM pentru Excel
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * POST /api/prices/import - Import prețuri din CSV
+ */
+router.post('/prices/import', requireAdmin, (req, res) => {
+    try {
+        const { csvData } = req.body;
+
+        if (!csvData) {
+            return res.status(400).json({ error: 'Date CSV lipsă' });
+        }
+
+        const result = pricesService.importFromCsv(csvData);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+});
+
+/**
+ * GET /api/prices/stats - Statistici prețuri
+ */
+router.get('/prices/stats', (req, res) => {
+    const stats = pricesService.getStats();
+    res.json(stats);
+});
+
+/**
+ * GET /api/prices/expired - Prețuri expirate
+ */
+router.get('/prices/expired', (req, res) => {
+    const expired = pricesService.getExpiredPrices();
+    const expiringSoon = pricesService.getExpiringSoonPrices(7);
+    res.json({ expired, expiringSoon });
+});
+
 module.exports = router;

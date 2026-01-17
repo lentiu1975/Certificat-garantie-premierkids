@@ -20,42 +20,28 @@ function addUserLocals(req, res, next) {
 }
 
 /**
- * GET / - Dashboard principal
+ * GET / - Dashboard principal (Module Launcher)
  */
 router.get('/', requireAuth, addUserLocals, async (req, res) => {
-    const newProductsCount = productsService.countNewProducts();
-    const lastProcessed = certificatesService.getLastProcessedInvoice();
-    const recentCertificates = certificatesService.getCertificatesHistory(10);
-
-    // Verificăm starea configurării
-    let smartbillConfigured = false;
-    let emagConfigured = false;
-
-    if (credentialsExist()) {
-        try {
-            const creds = loadCredentials(process.env.ENCRYPTION_KEY);
-            smartbillConfigured = !!(creds?.smartbill?.username);
-            emagConfigured = !!(creds?.emag?.username);
-        } catch (e) { }
-    }
-
     res.render('dashboard', {
-        title: 'Dashboard',
-        newProductsCount,
-        lastProcessed,
-        recentCertificates,
-        smartbillConfigured,
-        emagConfigured
+        title: 'Dashboard'
     });
 });
 
 /**
- * GET /products - Pagina nomenclator produse
+ * GET /nomenclator - Pagina nomenclator produse (global)
  */
-router.get('/products', requireAuth, addUserLocals, (req, res) => {
+router.get('/nomenclator', requireAuth, addUserLocals, (req, res) => {
     res.render('products', {
         title: 'Nomenclator Produse'
     });
+});
+
+/**
+ * GET /products - Redirect la nomenclator (backward compatibility)
+ */
+router.get('/products', requireAuth, (req, res) => {
+    res.redirect('/nomenclator');
 });
 
 /**
@@ -116,6 +102,28 @@ router.get('/settings', requireAuth, requireAdmin, addUserLocals, (req, res) => 
 router.get('/history', requireAuth, addUserLocals, (req, res) => {
     res.render('history', {
         title: 'Istoric Certificate'
+    });
+});
+
+// ============================================
+// MODUL PREȚURI
+// ============================================
+
+/**
+ * GET /prices - Pagina principală prețuri
+ */
+router.get('/prices', requireAuth, addUserLocals, (req, res) => {
+    res.render('prices', {
+        title: 'Prețuri'
+    });
+});
+
+/**
+ * GET /prices/channels - Administrare canale de vânzare
+ */
+router.get('/prices/channels', requireAuth, requireAdmin, addUserLocals, (req, res) => {
+    res.render('price-channels', {
+        title: 'Canale de Vânzare'
     });
 });
 

@@ -91,6 +91,70 @@
     </div>
 </div>
 
+<!-- Schimbare Parolă -->
+<div class="row g-4 mt-2">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-key me-2"></i>Schimbă Parola
+            </div>
+            <div class="card-body">
+                <form id="changePasswordForm">
+                    <div class="mb-3">
+                        <label class="form-label">Parola Actuală</label>
+                        <input type="password" class="form-control" name="currentPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Parola Nouă</label>
+                        <input type="password" class="form-control" name="newPassword" required minlength="8">
+                        <small class="text-muted">Minim 8 caractere</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirmă Parola Nouă</label>
+                        <input type="password" class="form-control" name="confirmPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-2"></i>Schimbă Parola
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Management Utilizatori -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-people me-2"></i>Utilizatori</span>
+                <button class="btn btn-sm btn-primary" onclick="showAddUserModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Adaugă
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Username</th>
+                                <th class="text-center">Rol</th>
+                                <th class="text-center">Ultima autentificare</th>
+                                <th class="text-center">Acțiuni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Configurare Avansată -->
 <div class="card mt-4">
     <div class="card-header">
@@ -109,6 +173,90 @@
                     <input type="text" class="form-control" id="lastProcessedConfig" placeholder="ex: PKF0001234">
                     <button class="btn btn-outline-secondary" id="saveConfigBtn">Salvează</button>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Adăugare/Editare Utilizator -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle">Adaugă Utilizator</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="userForm" onsubmit="saveUser(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="userId">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="userUsername" required minlength="3">
+                    </div>
+                    <div class="mb-3" id="passwordField">
+                        <label class="form-label">Parolă</label>
+                        <input type="password" class="form-control" id="userPassword" minlength="8">
+                        <small class="text-muted">Minim 8 caractere</small>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="userIsAdmin">
+                        <label class="form-check-label" for="userIsAdmin">Administrator</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                    <button type="submit" class="btn btn-primary" id="saveUserBtn">Salvează</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Resetare Parolă -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resetare Parolă</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form onsubmit="resetUserPassword(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="resetUserId">
+                    <p class="mb-3">Resetează parola pentru <strong id="resetUsername"></strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Parolă Nouă</label>
+                        <input type="password" class="form-control" id="resetNewPassword" required minlength="8">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                    <button type="submit" class="btn btn-warning">Resetează</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Confirmare Ștergere -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirmare
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p>Sigur dorești să ștergi utilizatorul <strong id="deleteUsername"></strong>?</p>
+                <p class="small text-muted mb-0">Această acțiune este ireversibilă.</p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteUser()">
+                    <i class="bi bi-trash me-1"></i>Șterge
+                </button>
             </div>
         </div>
     </div>
@@ -290,7 +438,286 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = await response.json();
         document.getElementById('lastProcessedConfig').value = data.lastProcessedInvoice || '';
     } catch (e) {}
+
+    // Încarcă lista de utilizatori
+    loadUsers();
 });
+
+// ============================================
+// SCHIMBARE PAROLĂ
+// ============================================
+
+document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+
+    const newPassword = form.newPassword.value;
+    const confirmPassword = form.confirmPassword.value;
+
+    if (newPassword !== confirmPassword) {
+        showAlert('Parolele noi nu coincid', 'danger');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se procesează...';
+
+    try {
+        const response = await fetch('/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                currentPassword: form.currentPassword.value,
+                newPassword: form.newPassword.value,
+                confirmNewPassword: form.confirmPassword.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert('Parola a fost schimbată cu succes!', 'success');
+            form.reset();
+        } else {
+            showAlert(data.error || 'Eroare la schimbarea parolei', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Schimbă Parola';
+    }
+});
+
+// ============================================
+// MANAGEMENT UTILIZATORI
+// ============================================
+
+let users = [];
+let userModal, resetPasswordModal, deleteUserModal;
+let deleteUserId = null;
+
+// Inițializare modals
+userModal = new bootstrap.Modal(document.getElementById('userModal'));
+resetPasswordModal = new bootstrap.Modal(document.getElementById('resetPasswordModal'));
+deleteUserModal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
+
+async function loadUsers() {
+    const tbody = document.getElementById('usersTableBody');
+
+    try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Eroare la încărcare');
+        }
+
+        users = data.users;
+        renderUsers();
+    } catch (error) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function renderUsers() {
+    const tbody = document.getElementById('usersTableBody');
+
+    if (users.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-4 text-muted">Nu există utilizatori</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = users.map(user => `
+        <tr>
+            <td>
+                <strong>${escapeHtml(user.username)}</strong>
+            </td>
+            <td class="text-center">
+                ${user.isAdmin ?
+                    '<span class="badge bg-primary">Admin</span>' :
+                    '<span class="badge bg-secondary">Utilizator</span>'}
+            </td>
+            <td class="text-center small text-muted">
+                ${user.last_login ? formatDate(user.last_login) : 'Niciodată'}
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(${user.id})" title="Editează">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-warning me-1" onclick="showResetPasswordModal(${user.id}, '${escapeHtml(user.username)}')" title="Resetează parola">
+                    <i class="bi bi-key"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="showDeleteUserModal(${user.id}, '${escapeHtml(user.username)}')" title="Șterge">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddUserModal() {
+    document.getElementById('userModalTitle').textContent = 'Adaugă Utilizator';
+    document.getElementById('userForm').reset();
+    document.getElementById('userId').value = '';
+    document.getElementById('passwordField').style.display = 'block';
+    document.getElementById('userPassword').required = true;
+    userModal.show();
+}
+
+function editUser(id) {
+    const user = users.find(u => u.id === id);
+    if (!user) return;
+
+    document.getElementById('userModalTitle').textContent = 'Editează Utilizator';
+    document.getElementById('userId').value = user.id;
+    document.getElementById('userUsername').value = user.username;
+    document.getElementById('userIsAdmin').checked = user.isAdmin;
+    document.getElementById('passwordField').style.display = 'none';
+    document.getElementById('userPassword').required = false;
+
+    userModal.show();
+}
+
+async function saveUser(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('userId').value;
+    const username = document.getElementById('userUsername').value.trim();
+    const password = document.getElementById('userPassword').value;
+    const isAdmin = document.getElementById('userIsAdmin').checked;
+
+    const btn = document.getElementById('saveUserBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        let response;
+
+        if (id) {
+            // Editare
+            response = await fetch(`/api/users/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, isAdmin })
+            });
+        } else {
+            // Adăugare
+            response = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, isAdmin })
+            });
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Eroare la salvare');
+        }
+
+        userModal.hide();
+        showAlert(id ? 'Utilizator actualizat!' : 'Utilizator adăugat!', 'success');
+        loadUsers();
+    } catch (error) {
+        showAlert(error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Salvează';
+    }
+}
+
+function showResetPasswordModal(id, username) {
+    document.getElementById('resetUserId').value = id;
+    document.getElementById('resetUsername').textContent = username;
+    document.getElementById('resetNewPassword').value = '';
+    resetPasswordModal.show();
+}
+
+async function resetUserPassword(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('resetUserId').value;
+    const newPassword = document.getElementById('resetNewPassword').value;
+
+    try {
+        const response = await fetch(`/api/users/${id}/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ newPassword })
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Eroare la resetare');
+        }
+
+        resetPasswordModal.hide();
+        showAlert('Parola a fost resetată cu succes!', 'success');
+    } catch (error) {
+        showAlert(error.message, 'danger');
+    }
+}
+
+function showDeleteUserModal(id, username) {
+    deleteUserId = id;
+    document.getElementById('deleteUsername').textContent = username;
+    deleteUserModal.show();
+}
+
+async function confirmDeleteUser() {
+    if (!deleteUserId) return;
+
+    try {
+        const response = await fetch(`/api/users/${deleteUserId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Eroare la ștergere');
+        }
+
+        deleteUserModal.hide();
+        showAlert('Utilizator șters cu succes!', 'success');
+        loadUsers();
+    } catch (error) {
+        showAlert(error.message, 'danger');
+    }
+
+    deleteUserId = null;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ro-RO', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 </script>
 </body>
 </html>

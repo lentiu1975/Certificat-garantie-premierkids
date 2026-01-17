@@ -74,15 +74,16 @@ async function startServer() {
     });
     app.use(limiter);
 
-    // Rate limiting mai strict pentru login (dezactivat în development)
-    if (process.env.NODE_ENV === 'production') {
-        const loginLimiter = rateLimit({
-            windowMs: 15 * 60 * 1000,
-            max: 10,
-            message: { error: 'Prea multe încercări de autentificare. Încercați din nou în 15 minute.' }
-        });
-        app.use('/auth/login', loginLimiter);
-    }
+    // Rate limiting mai strict pentru login (TEMPORAR DEZACTIVAT)
+    // TODO: Reactivează după resetare parolă
+    // if (process.env.NODE_ENV === 'production') {
+    //     const loginLimiter = rateLimit({
+    //         windowMs: 15 * 60 * 1000,
+    //         max: 10,
+    //         message: { error: 'Prea multe încercări de autentificare. Încercați din nou în 15 minute.' }
+    //     });
+    //     app.use('/auth/login', loginLimiter);
+    // }
 
     // Parsare body
     app.use(express.json({ limit: '10mb' }));
@@ -114,6 +115,7 @@ async function startServer() {
     // Template engine - EJS
     app.set('view engine', 'ejs');
     app.set('views', path.join(__dirname, 'views'));
+    app.set('view cache', false); // Dezactivează cache-ul pentru template-uri
 
     // Trust proxy pentru deployări în spatele unui reverse proxy
     if (process.env.NODE_ENV === 'production') {
@@ -150,6 +152,19 @@ async function startServer() {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${sanitizedFilename}"`);
         res.sendFile(filePath);
+    });
+
+    // TEMPORAR - Reset parola admin (ȘTERGE DUPĂ UTILIZARE!)
+    app.get('/reset-admin-password', async (req, res) => {
+        try {
+            const bcrypt = require('bcryptjs');
+            const { db, saveDatabase } = require('./config/database');
+            const hash = bcrypt.hashSync('admin123', 12);
+            db.prepare('UPDATE users SET password_hash = ? WHERE username = ?').run(hash, 'admin');
+            res.send('Parola resetata! Username: admin, Parola: admin123 - STERGE ACEST ENDPOINT!');
+        } catch (error) {
+            res.status(500).send('Eroare: ' + error.message);
+        }
     });
 
     // Endpoint de debug temporar (fără autentificare) pentru a vedea structura facturilor SmartBill

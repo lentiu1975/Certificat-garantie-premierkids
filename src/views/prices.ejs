@@ -1,0 +1,644 @@
+<%- include('partials/header') %>
+
+<!-- Toolbar -->
+<div class="card mb-4">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-currency-exchange me-2"></i>Management Prețuri</span>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- Curs valutar -->
+                <div class="d-flex align-items-center gap-2 px-3 py-1 bg-light rounded">
+                    <small class="text-muted">EUR:</small>
+                    <strong id="rateEur" class="text-primary">-</strong>
+                    <small class="text-muted ms-2">HUF:</small>
+                    <strong id="rateHuf" class="text-primary">-</strong>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" id="refreshRatesBtn" title="Actualizează curs BNR">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+
+                <!-- Acțiuni -->
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary" id="generateGroupsBtn">
+                        <i class="bi bi-magic me-1"></i>Generează Grupuri
+                    </button>
+                    <button class="btn btn-outline-success" id="exportBtn">
+                        <i class="bi bi-download me-1"></i>Export
+                    </button>
+                    <button class="btn btn-outline-warning" id="importBtn" data-bs-toggle="modal" data-bs-target="#importModal">
+                        <i class="bi bi-upload me-1"></i>Import
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filtre și Statistici -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Caută produs...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterStatus">
+                    <option value="all">Toate produsele</option>
+                    <option value="with_base">Cu preț bază</option>
+                    <option value="without_base">Fără preț bază</option>
+                    <option value="expired">Prețuri expirate</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <div class="d-flex justify-content-end gap-3">
+                    <span class="badge bg-primary fs-6" id="statTotal">0 grupuri</span>
+                    <span class="badge bg-success fs-6" id="statWithPrice">0 cu preț</span>
+                    <span class="badge bg-warning fs-6" id="statWithoutPrice">0 fără preț</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabel Prețuri -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+            <table class="table table-hover table-sm mb-0" id="pricesTable">
+                <thead class="table-light sticky-top">
+                    <tr id="tableHeader">
+                        <th class="sticky-col bg-light" style="min-width: 280px; left: 0; z-index: 2;">
+                            Produs
+                            <small class="d-block text-muted fw-normal">Grupare automată</small>
+                        </th>
+                        <th style="min-width: 120px; text-align: right;">
+                            Preț Bază
+                            <small class="d-block text-muted fw-normal">RON</small>
+                        </th>
+                        <!-- Coloanele pentru canale se generează dinamic -->
+                    </tr>
+                </thead>
+                <tbody id="pricesBody">
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="mt-2 text-muted">Se încarcă datele...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Import CSV -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>Import Prețuri din CSV</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Format CSV:</strong> Prima coloană trebuie să fie <code>group_name</code> (numele grupului),
+                    a doua <code>base_price</code> (prețul de bază în RON), iar restul coloanelor cu denumirile canalelor.
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Conținut CSV</label>
+                    <textarea class="form-control font-monospace" id="csvInput" rows="10"
+                              placeholder="group_name,base_price,Premierkids_RON,eMag_RON&#10;Jeep Wrangler 12V,1499,1599,1549"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Sau încarcă fișier</label>
+                    <input type="file" class="form-control" id="csvFile" accept=".csv,.txt">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                <button type="button" class="btn btn-primary" id="doImportBtn">
+                    <i class="bi bi-upload me-2"></i>Importă
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editare Grup -->
+<div class="modal fade" id="editGroupModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Editare Prețuri</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Nume Grup</label>
+                        <input type="text" class="form-control" id="editGroupName" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Preț Bază (RON)</label>
+                        <input type="number" class="form-control" id="editBasePrice" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Produse în grup</label>
+                        <input type="text" class="form-control" id="editProductsCount" readonly>
+                    </div>
+                </div>
+
+                <h6 class="mb-3">Prețuri pe Canale</h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="editPricesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Canal</th>
+                                <th>Valută</th>
+                                <th>TVA</th>
+                                <th>Preț Sugerat</th>
+                                <th>Preț Final</th>
+                                <th>Fără TVA</th>
+                                <th>Expiră la</th>
+                            </tr>
+                        </thead>
+                        <tbody id="editPricesBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <h6>Produse incluse în grup</h6>
+                    <div id="groupProductsList" class="small text-muted" style="max-height: 100px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                <button type="button" class="btn btn-primary" id="saveGroupBtn">
+                    <i class="bi bi-save me-2"></i>Salvează
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .sticky-col {
+        position: sticky;
+        left: 0;
+        background: white;
+    }
+    #pricesTable tbody tr:hover .sticky-col {
+        background: #f8f9fa;
+    }
+    .price-input {
+        width: 100px;
+        text-align: right;
+    }
+    .price-cell {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .price-cell:hover {
+        background: #e9ecef !important;
+    }
+    .expired-price {
+        background: #fff3cd !important;
+    }
+    .no-price {
+        color: #999;
+        font-style: italic;
+    }
+    .without-vat {
+        font-size: 0.75rem;
+        color: #666;
+    }
+</style>
+
+<%- include('partials/footer') %>
+
+<script>
+let channels = [];
+let groups = [];
+let exchangeRates = {};
+let currentEditGroupId = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadExchangeRates();
+    await loadChannels();
+    await loadGroups();
+
+    // Event listeners
+    document.getElementById('refreshRatesBtn').addEventListener('click', fetchNewRates);
+    document.getElementById('generateGroupsBtn').addEventListener('click', generateGroups);
+    document.getElementById('exportBtn').addEventListener('click', exportPrices);
+    document.getElementById('doImportBtn').addEventListener('click', importPrices);
+    document.getElementById('saveGroupBtn').addEventListener('click', saveGroup);
+    document.getElementById('searchInput').addEventListener('input', filterTable);
+    document.getElementById('filterStatus').addEventListener('change', filterTable);
+    document.getElementById('csvFile').addEventListener('change', loadCsvFile);
+});
+
+async function loadExchangeRates() {
+    try {
+        const response = await fetch('/api/exchange-rates');
+        const data = await response.json();
+        exchangeRates = data.rates || {};
+
+        document.getElementById('rateEur').textContent = exchangeRates.EUR?.rate?.toFixed(4) || '-';
+        document.getElementById('rateHuf').textContent = exchangeRates.HUF?.rate?.toFixed(4) || '-';
+    } catch (error) {
+        console.error('Eroare la încărcarea cursurilor:', error);
+    }
+}
+
+async function loadChannels() {
+    try {
+        const response = await fetch('/api/price-channels');
+        const data = await response.json();
+        channels = data.channels || [];
+        renderTableHeader();
+    } catch (error) {
+        console.error('Eroare la încărcarea canalelor:', error);
+    }
+}
+
+async function loadGroups() {
+    try {
+        const response = await fetch('/api/product-groups?withPrices=true');
+        const data = await response.json();
+        groups = data.groups || [];
+        renderTableBody();
+        updateStats();
+    } catch (error) {
+        console.error('Eroare la încărcarea grupurilor:', error);
+        document.getElementById('pricesBody').innerHTML =
+            '<tr><td colspan="10" class="text-center py-5 text-danger">Eroare la încărcarea datelor</td></tr>';
+    }
+}
+
+function renderTableHeader() {
+    const headerRow = document.getElementById('tableHeader');
+    // Păstrăm primele 2 coloane (Produs și Preț Bază)
+    const existingCols = headerRow.querySelectorAll('th');
+    while (existingCols.length > 2) {
+        headerRow.removeChild(existingCols[existingCols.length - 1]);
+    }
+
+    // Adăugăm coloanele pentru canale
+    channels.forEach(channel => {
+        const th = document.createElement('th');
+        th.style.minWidth = '120px';
+        th.style.textAlign = 'right';
+        th.innerHTML = `
+            ${channel.name}
+            <small class="d-block text-muted fw-normal">${channel.currency}${channel.show_without_vat ? ' + fără TVA' : ''}</small>
+        `;
+        headerRow.appendChild(th);
+    });
+}
+
+function renderTableBody() {
+    const tbody = document.getElementById('pricesBody');
+
+    if (groups.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="${2 + channels.length}" class="text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nu există grupuri de produse.</p>
+                    <button class="btn btn-primary" onclick="generateGroups()">
+                        <i class="bi bi-magic me-2"></i>Generează Grupuri Automat
+                    </button>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = groups.map(group => {
+        let row = `
+            <tr data-group-id="${group.id}" data-group-name="${group.group_name.toLowerCase()}">
+                <td class="sticky-col bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${group.group_name}</strong>
+                            <small class="d-block text-muted">${group.products_count || group.smartbill_codes?.length || 0} produse</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editGroup(${group.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
+                </td>
+                <td class="text-end price-cell ${!group.base_price ? 'no-price' : ''}" onclick="editGroup(${group.id})">
+                    ${group.base_price ? formatPrice(group.base_price, 'RON') : '-'}
+                </td>
+        `;
+
+        channels.forEach(channel => {
+            const priceData = group.prices?.[channel.id];
+            const hasPrice = priceData?.price > 0;
+            const isExpired = priceData?.is_expired;
+
+            let cellContent = '-';
+            let cellClass = 'no-price';
+
+            if (hasPrice) {
+                cellContent = formatPrice(priceData.price, channel.currency);
+                cellClass = isExpired ? 'expired-price' : '';
+
+                if (channel.show_without_vat && priceData.price_without_vat) {
+                    cellContent += `<br><span class="without-vat">fără TVA: ${priceData.price_without_vat.toFixed(4)}</span>`;
+                }
+            }
+
+            row += `<td class="text-end price-cell ${cellClass}" onclick="editGroup(${group.id})">${cellContent}</td>`;
+        });
+
+        row += '</tr>';
+        return row;
+    }).join('');
+}
+
+function formatPrice(price, currency) {
+    if (!price) return '-';
+
+    const formatter = new Intl.NumberFormat('ro-RO', {
+        minimumFractionDigits: currency === 'HUF' ? 0 : 2,
+        maximumFractionDigits: currency === 'HUF' ? 0 : 2
+    });
+
+    return formatter.format(price);
+}
+
+function updateStats() {
+    const total = groups.length;
+    const withPrice = groups.filter(g => g.base_price > 0).length;
+    const withoutPrice = total - withPrice;
+
+    document.getElementById('statTotal').textContent = `${total} grupuri`;
+    document.getElementById('statWithPrice').textContent = `${withPrice} cu preț`;
+    document.getElementById('statWithoutPrice').textContent = `${withoutPrice} fără preț`;
+}
+
+function filterTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const filter = document.getElementById('filterStatus').value;
+
+    const rows = document.querySelectorAll('#pricesBody tr[data-group-id]');
+
+    rows.forEach(row => {
+        const name = row.dataset.groupName || '';
+        const groupId = parseInt(row.dataset.groupId);
+        const group = groups.find(g => g.id === groupId);
+
+        let show = name.includes(search);
+
+        if (show && filter !== 'all') {
+            if (filter === 'with_base') {
+                show = group?.base_price > 0;
+            } else if (filter === 'without_base') {
+                show = !group?.base_price;
+            } else if (filter === 'expired') {
+                show = Object.values(group?.prices || {}).some(p => p.is_expired);
+            }
+        }
+
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+async function fetchNewRates() {
+    const btn = document.getElementById('refreshRatesBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch('/api/exchange-rates/fetch', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            await loadExchangeRates();
+            showAlert('Curs valutar actualizat cu succes!', 'success');
+        } else {
+            showAlert(data.error || 'Eroare la actualizarea cursului', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>';
+    }
+}
+
+async function generateGroups() {
+    const btn = document.getElementById('generateGroupsBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Se generează...';
+
+    try {
+        const response = await fetch('/api/product-groups/generate', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            showAlert(data.message, 'success');
+            await loadGroups();
+        } else {
+            showAlert(data.error || 'Eroare la generarea grupurilor', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generează Grupuri';
+    }
+}
+
+function exportPrices() {
+    window.location.href = '/api/prices/export';
+}
+
+function loadCsvFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('csvInput').value = e.target.result;
+    };
+    reader.readAsText(file);
+}
+
+async function importPrices() {
+    const csvData = document.getElementById('csvInput').value.trim();
+    if (!csvData) {
+        showAlert('Introduceți date CSV', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('doImportBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se importă...';
+
+    try {
+        const response = await fetch('/api/prices/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csvData })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            let msg = `Import finalizat: ${data.updated} prețuri actualizate.`;
+            if (data.errors?.length) {
+                msg += ` ${data.errors.length} erori.`;
+            }
+            showAlert(msg, data.errors?.length ? 'warning' : 'success');
+            bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+            await loadGroups();
+        } else {
+            showAlert(data.error || 'Eroare la import', 'danger');
+        }
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-2"></i>Importă';
+    }
+}
+
+async function editGroup(groupId) {
+    currentEditGroupId = groupId;
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    document.getElementById('editGroupName').value = group.group_name;
+    document.getElementById('editBasePrice').value = group.base_price || '';
+    document.getElementById('editProductsCount').value = group.products_count || group.smartbill_codes?.length || 0;
+
+    // Încarcă lista de produse
+    try {
+        const response = await fetch(`/api/product-groups/${groupId}/products`);
+        const data = await response.json();
+        document.getElementById('groupProductsList').innerHTML =
+            data.products.map(p => `<span class="badge bg-light text-dark me-1 mb-1">${p.smartbill_name}</span>`).join('');
+    } catch (e) {
+        document.getElementById('groupProductsList').innerHTML = '<em>Nu s-au putut încărca produsele</em>';
+    }
+
+    // Render tabelul de prețuri
+    const tbody = document.getElementById('editPricesBody');
+    tbody.innerHTML = channels.map(channel => {
+        const priceData = group.prices?.[channel.id] || {};
+        const suggestedPrice = calculateSuggestedPrice(group.base_price, channel.currency);
+
+        return `
+            <tr data-channel-id="${channel.id}">
+                <td><strong>${channel.name}</strong></td>
+                <td>${channel.currency}</td>
+                <td>${channel.vat_rate}%</td>
+                <td class="text-end text-muted">${suggestedPrice ? formatPrice(suggestedPrice, channel.currency) : '-'}</td>
+                <td>
+                    <input type="number" class="form-control form-control-sm price-input"
+                           value="${priceData.price || ''}" step="0.01" min="0"
+                           data-channel-id="${channel.id}">
+                </td>
+                <td class="text-end without-vat-display">
+                    ${channel.show_without_vat && priceData.price_without_vat ? priceData.price_without_vat.toFixed(4) : '-'}
+                </td>
+                <td>
+                    <input type="date" class="form-control form-control-sm"
+                           value="${priceData.expires_at ? priceData.expires_at.split('T')[0] : ''}"
+                           data-channel-id="${channel.id}" data-field="expires">
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // Adăugăm listener pentru a actualiza "fără TVA" live
+    tbody.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('input', function() {
+            const channelId = this.dataset.channelId;
+            const channel = channels.find(c => c.id == channelId);
+            const row = this.closest('tr');
+            const vatDisplay = row.querySelector('.without-vat-display');
+
+            if (channel && this.value) {
+                const priceWithoutVat = parseFloat(this.value) / (1 + channel.vat_rate / 100);
+                vatDisplay.textContent = channel.show_without_vat ? priceWithoutVat.toFixed(4) : '-';
+            } else {
+                vatDisplay.textContent = '-';
+            }
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+    modal.show();
+}
+
+function calculateSuggestedPrice(basePrice, currency) {
+    if (!basePrice || !currency) return null;
+    if (currency === 'RON') return basePrice;
+
+    const rate = exchangeRates[currency]?.rate;
+    if (!rate) return null;
+
+    return basePrice / rate;
+}
+
+async function saveGroup() {
+    const btn = document.getElementById('saveGroupBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Se salvează...';
+
+    try {
+        // Salvăm prețul de bază
+        const basePrice = parseFloat(document.getElementById('editBasePrice').value) || 0;
+        await fetch(`/api/product-groups/${currentEditGroupId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base_price: basePrice })
+        });
+
+        // Salvăm prețurile pe canale
+        const prices = [];
+        document.querySelectorAll('#editPricesBody tr').forEach(row => {
+            const channelId = row.dataset.channelId;
+            const priceInput = row.querySelector('input[type="number"]');
+            const expiresInput = row.querySelector('input[type="date"]');
+
+            if (priceInput.value) {
+                prices.push({
+                    channel_id: parseInt(channelId),
+                    price: parseFloat(priceInput.value),
+                    expires_at: expiresInput.value || null
+                });
+            }
+        });
+
+        if (prices.length > 0) {
+            await fetch(`/api/product-groups/${currentEditGroupId}/prices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prices })
+            });
+        }
+
+        showAlert('Prețuri salvate cu succes!', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+        await loadGroups();
+    } catch (error) {
+        showAlert('Eroare: ' + error.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save me-2"></i>Salvează';
+    }
+}
+</script>
+</body>
+</html>

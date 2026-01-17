@@ -1,189 +1,109 @@
 <%- include('partials/header') %>
 
-<div class="row g-4 mb-4">
-    <!-- Card Status SmartBill -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="rounded-circle p-3 <% if (smartbillConfigured) { %>bg-success<% } else { %>bg-warning<% } %> bg-opacity-10">
-                            <i class="bi bi-cloud-check fs-4 <% if (smartbillConfigured) { %>text-success<% } else { %>text-warning<% } %>"></i>
-                        </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">SmartBill API</h6>
-                        <span class="badge <% if (smartbillConfigured) { %>bg-success<% } else { %>bg-warning<% } %>">
-                            <% if (smartbillConfigured) { %>Configurat<% } else { %>Neconfigurat<% } %>
-                        </span>
-                    </div>
+<div class="module-launcher">
+    <div class="row g-4 mb-4">
+        <!-- Certificate Garanție -->
+        <div class="col-md-6">
+            <a href="/certificates/auto" class="module-card module-certificates">
+                <div class="module-icon">
+                    <i class="bi bi-file-earmark-check"></i>
                 </div>
-            </div>
+                <div class="module-info">
+                    <h3>Certificate Garanție</h3>
+                    <p>Generare automată certificate de garanție din facturi SmartBill</p>
+                </div>
+                <div class="module-arrow">
+                    <i class="bi bi-arrow-right"></i>
+                </div>
+            </a>
+        </div>
+
+        <!-- Prețuri -->
+        <div class="col-md-6">
+            <a href="/prices" class="module-card module-preturi">
+                <div class="module-icon">
+                    <i class="bi bi-currency-exchange"></i>
+                </div>
+                <div class="module-info">
+                    <h3>Prețuri</h3>
+                    <p>Management și sincronizare prețuri pe multiple canale de vânzare</p>
+                </div>
+                <div class="module-arrow">
+                    <i class="bi bi-arrow-right"></i>
+                </div>
+            </a>
         </div>
     </div>
 
-    <!-- Card Status eMAG -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="rounded-circle p-3 <% if (emagConfigured) { %>bg-success<% } else { %>bg-secondary<% } %> bg-opacity-10">
-                            <i class="bi bi-shop fs-4 <% if (emagConfigured) { %>text-success<% } else { %>text-secondary<% } %>"></i>
-                        </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">eMAG API</h6>
-                        <span class="badge <% if (emagConfigured) { %>bg-success<% } else { %>bg-secondary<% } %>">
-                            <% if (emagConfigured) { %>Configurat<% } else { %>Opțional<% } %>
-                        </span>
-                    </div>
+    <div class="row g-4 mb-4">
+        <!-- Crawler -->
+        <div class="col-md-6">
+            <a href="#" class="module-card module-crawler" onclick="showComingSoon('Crawler'); return false;">
+                <div class="module-icon">
+                    <i class="bi bi-robot"></i>
                 </div>
-            </div>
+                <div class="module-info">
+                    <h3>Crawler</h3>
+                    <p>Monitorizare și extragere date de pe site-uri externe</p>
+                    <span class="badge bg-secondary">În curând</span>
+                </div>
+                <div class="module-arrow">
+                    <i class="bi bi-arrow-right"></i>
+                </div>
+            </a>
+        </div>
+
+        <!-- Piese de schimb -->
+        <div class="col-md-6">
+            <a href="#" class="module-card module-piese" onclick="showComingSoon('Piese de schimb'); return false;">
+                <div class="module-icon">
+                    <i class="bi bi-gear"></i>
+                </div>
+                <div class="module-info">
+                    <h3>Piese de schimb</h3>
+                    <p>Gestiune inventar piese și componente</p>
+                    <span class="badge bg-secondary">În curând</span>
+                </div>
+                <div class="module-arrow">
+                    <i class="bi bi-arrow-right"></i>
+                </div>
+            </a>
         </div>
     </div>
 
-    <!-- Card Produse Noi -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="rounded-circle p-3 <% if (newProductsCount > 0) { %>bg-danger<% } else { %>bg-success<% } %> bg-opacity-10">
-                            <i class="bi bi-box-seam fs-4 <% if (newProductsCount > 0) { %>text-danger<% } else { %>text-success<% } %>"></i>
-                        </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">Produse Noi</h6>
-                        <span class="badge <% if (newProductsCount > 0) { %>bg-danger<% } else { %>bg-success<% } %>">
-                            <% if (newProductsCount > 0) { %><%= newProductsCount %> de configurat<% } else { %>Toate configurate<% } %>
-                        </span>
-                    </div>
+    <div class="row g-4">
+        <!-- Nomenclator -->
+        <div class="col-12">
+            <a href="/nomenclator" class="module-card module-nomenclator">
+                <div class="module-icon">
+                    <i class="bi bi-box-seam"></i>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Card Ultima Factură -->
-    <div class="col-md-6 col-lg-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="flex-shrink-0">
-                        <div class="rounded-circle p-3 bg-primary bg-opacity-10">
-                            <i class="bi bi-receipt fs-4 text-primary"></i>
-                        </div>
-                    </div>
-                    <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">Ultima Factură</h6>
-                        <span class="text-muted small"><%= lastProcessed || 'Nicio factură procesată' %></span>
-                    </div>
+                <div class="module-info">
+                    <h3>Nomenclator Produse</h3>
+                    <p>Configurare produse, garanții și parametri tehnici - folosit de toate modulele</p>
                 </div>
-            </div>
+                <div class="module-arrow">
+                    <i class="bi bi-arrow-right"></i>
+                </div>
+            </a>
         </div>
     </div>
 </div>
 
-<!-- Acțiuni Rapide -->
-<div class="row g-4 mb-4">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-lightning-charge me-2"></i>Acțiuni Rapide</span>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="/certificates/auto" class="btn btn-primary btn-lg">
-                        <i class="bi bi-play-circle me-2"></i>Procesare Automată Facturi
-                    </a>
-                    <a href="/certificates/manual" class="btn btn-outline-primary">
-                        <i class="bi bi-file-earmark-plus me-2"></i>Generare Certificat Manual
-                    </a>
-                    <a href="/products" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-repeat me-2"></i>Actualizare Nomenclator
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<script>
+function showComingSoon(moduleName) {
+    // Creare alert toast
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-info alert-floating';
+    alertDiv.innerHTML = `<i class="bi bi-info-circle me-2"></i>Modulul <strong>${moduleName}</strong> este în curs de dezvoltare.`;
+    document.body.appendChild(alertDiv);
 
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">
-                <i class="bi bi-info-circle me-2"></i>Informații Importante
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info mb-3">
-                    <i class="bi bi-shield-check me-2"></i>
-                    <strong>SmartBill API:</strong> Aplicația funcționează în mod READ-ONLY.
-                    Nu se trimit date către SmartBill, doar se citesc.
-                </div>
-                <ul class="list-unstyled mb-0">
-                    <li class="mb-2">
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        Certificatele sunt generate automat din template PDF
-                    </li>
-                    <li class="mb-2">
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        Detectare automată comenzi eMAG pentru upload
-                    </li>
-                    <li>
-                        <i class="bi bi-check-circle text-success me-2"></i>
-                        Garanție diferențiată PF/PJ
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Ultimele Certificate -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-clock-history me-2"></i>Ultimele Certificate Generate</span>
-        <a href="/history" class="btn btn-sm btn-outline-primary">Vezi toate</a>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Factură</th>
-                        <th>Client</th>
-                        <th>Data</th>
-                        <th>eMAG</th>
-                        <th>Acțiuni</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% if (recentCertificates.length === 0) { %>
-                    <tr><td colspan="5" class="text-center text-muted py-4">Niciun certificat generat încă</td></tr>
-                    <% } else { %>
-                    <% recentCertificates.forEach(cert => { %>
-                    <tr>
-                        <td><strong><%= cert.invoice_number %></strong></td>
-                        <td><%= cert.client_name || '-' %></td>
-                        <td><%= new Date(cert.created_at).toLocaleDateString('ro-RO') %></td>
-                        <td>
-                            <% if (cert.emag_order_number) { %>
-                                <% if (cert.emag_uploaded) { %>
-                                <span class="badge bg-success">Încărcat</span>
-                                <% } else { %>
-                                <span class="badge bg-warning">În așteptare</span>
-                                <% } %>
-                            <% } else { %>
-                            <span class="text-muted">-</span>
-                            <% } %>
-                        </td>
-                        <td><a href="/api/certificates/<%= cert.invoice_number %>/download" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a></td>
-                    </tr>
-                    <% }) %>
-                    <% } %>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+    setTimeout(() => {
+        alertDiv.style.opacity = '0';
+        setTimeout(() => alertDiv.remove(), 300);
+    }, 3000);
+}
+</script>
 
 <%- include('partials/footer') %>
 </body>

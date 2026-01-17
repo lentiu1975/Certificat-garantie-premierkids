@@ -1,0 +1,437 @@
+<%- include('partials/header') %>
+
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/prices">Prețuri</a></li>
+                    <li class="breadcrumb-item active">Canale de Vânzare</li>
+                </ol>
+            </nav>
+            <h1 class="h3 mb-0">
+                <i class="bi bi-shop me-2"></i>Canale de Vânzare
+            </h1>
+            <p class="text-muted mb-0">Administrează magazinele și canalele de vânzare</p>
+        </div>
+        <div>
+            <a href="/prices" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left me-1"></i>Înapoi la Prețuri
+            </a>
+            <button class="btn btn-primary" onclick="showAddModal()">
+                <i class="bi bi-plus-lg me-1"></i>Adaugă Canal
+            </button>
+        </div>
+    </div>
+
+    <!-- Channels Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul me-2"></i>Lista Canale
+                </h5>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="showInactive" onchange="loadChannels()">
+                    <label class="form-check-label" for="showInactive">Arată și dezactivate</label>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="channelsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;" class="text-center">#</th>
+                            <th>Nume Canal</th>
+                            <th style="width: 100px;" class="text-center">Valută</th>
+                            <th style="width: 100px;" class="text-center">TVA %</th>
+                            <th style="width: 150px;" class="text-center">Preț fără TVA</th>
+                            <th style="width: 100px;" class="text-center">Status</th>
+                            <th style="width: 150px;" class="text-center">Acțiuni</th>
+                        </tr>
+                    </thead>
+                    <tbody id="channelsBody">
+                        <tr>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Se încarcă...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card mt-4 border-info">
+        <div class="card-body">
+            <h6 class="card-title text-info">
+                <i class="bi bi-info-circle me-2"></i>Informații
+            </h6>
+            <ul class="mb-0 small text-muted">
+                <li><strong>Valută</strong>: RON (Lei), EUR (Euro), HUF (Forinți ungurești)</li>
+                <li><strong>TVA</strong>: Procentul de TVA aplicat în canalul respectiv (România: 19%, Ungaria: 21%)</li>
+                <li><strong>Preț fără TVA</strong>: Activează pentru canale unde se afișează prețul fără TVA (ex: eMAG)</li>
+                <li>Canalele dezactivate nu mai apar în lista de prețuri, dar datele se păstrează</li>
+                <li>Ordinea canalelor poate fi modificată prin drag & drop</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal fade" id="channelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">
+                    <i class="bi bi-plus-lg me-2"></i>Adaugă Canal
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="channelForm" onsubmit="saveChannel(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="channelId">
+
+                    <div class="mb-3">
+                        <label class="form-label">Nume Canal <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="channelName" required
+                               placeholder="ex: eMag, Altex, Premierkids">
+                        <div class="form-text">Numele unic al canalului de vânzare</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Valută</label>
+                            <select class="form-select" id="channelCurrency">
+                                <option value="RON">RON - Lei românești</option>
+                                <option value="EUR">EUR - Euro</option>
+                                <option value="HUF">HUF - Forinți ungurești</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">TVA %</label>
+                            <input type="number" class="form-control" id="channelVatRate"
+                                   value="19" min="0" max="100" step="0.1">
+                            <div class="form-text">Ex: 19 pentru România, 21 pentru Ungaria</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="channelShowWithoutVat">
+                            <label class="form-check-label" for="channelShowWithoutVat">
+                                Afișează preț fără TVA
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Activează pentru canale unde prețul se introduce fără TVA (ex: eMAG)
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                    <button type="submit" class="btn btn-primary" id="saveBtn">
+                        <i class="bi bi-check-lg me-1"></i>Salvează
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Confirmare
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p>Sigur dorești să dezactivezi canalul <strong id="deleteChannelName"></strong>?</p>
+                <p class="small text-muted mb-0">Canalul poate fi reactivat ulterior.</p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anulează</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="bi bi-trash me-1"></i>Dezactivează
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let channels = [];
+let channelModal, deleteModal;
+let deleteChannelId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    channelModal = new bootstrap.Modal(document.getElementById('channelModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadChannels();
+});
+
+async function loadChannels() {
+    const showInactive = document.getElementById('showInactive').checked;
+    const tbody = document.getElementById('channelsBody');
+
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="7" class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Se încarcă...</span>
+                </div>
+            </td>
+        </tr>
+    `;
+
+    try {
+        const response = await fetch(`/api/price-channels?includeInactive=${showInactive}`);
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Eroare la încărcare');
+        }
+
+        channels = result.data;
+        renderChannels();
+    } catch (error) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5 text-danger">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function renderChannels() {
+    const tbody = document.getElementById('channelsBody');
+
+    if (channels.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    Nu există canale de vânzare
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = channels.map((channel, index) => `
+        <tr class="${channel.is_active ? '' : 'table-secondary'}">
+            <td class="text-center text-muted">${index + 1}</td>
+            <td>
+                <strong>${escapeHtml(channel.name)}</strong>
+                ${!channel.is_active ? '<span class="badge bg-secondary ms-2">Dezactivat</span>' : ''}
+            </td>
+            <td class="text-center">
+                <span class="badge ${getCurrencyBadgeClass(channel.currency)}">
+                    ${channel.currency}
+                </span>
+            </td>
+            <td class="text-center">${channel.vat_rate}%</td>
+            <td class="text-center">
+                ${channel.show_without_vat ?
+                    '<i class="bi bi-check-circle-fill text-success"></i> Da' :
+                    '<i class="bi bi-x-circle text-muted"></i> Nu'}
+            </td>
+            <td class="text-center">
+                ${channel.is_active ?
+                    '<span class="badge bg-success">Activ</span>' :
+                    '<span class="badge bg-secondary">Inactiv</span>'}
+            </td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editChannel(${channel.id})" title="Editează">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                ${channel.is_active ? `
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteChannel(${channel.id}, '${escapeHtml(channel.name)}')" title="Dezactivează">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                ` : `
+                    <button class="btn btn-sm btn-outline-success" onclick="activateChannel(${channel.id})" title="Reactivează">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                `}
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getCurrencyBadgeClass(currency) {
+    switch (currency) {
+        case 'EUR': return 'bg-primary';
+        case 'HUF': return 'bg-warning text-dark';
+        default: return 'bg-info';
+    }
+}
+
+function showAddModal() {
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-plus-lg me-2"></i>Adaugă Canal';
+    document.getElementById('channelForm').reset();
+    document.getElementById('channelId').value = '';
+    document.getElementById('channelVatRate').value = '19';
+    channelModal.show();
+}
+
+function editChannel(id) {
+    const channel = channels.find(c => c.id === id);
+    if (!channel) return;
+
+    document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Editează Canal';
+    document.getElementById('channelId').value = channel.id;
+    document.getElementById('channelName').value = channel.name;
+    document.getElementById('channelCurrency').value = channel.currency;
+    document.getElementById('channelVatRate').value = channel.vat_rate;
+    document.getElementById('channelShowWithoutVat').checked = channel.show_without_vat === 1;
+
+    channelModal.show();
+}
+
+async function saveChannel(event) {
+    event.preventDefault();
+
+    const id = document.getElementById('channelId').value;
+    const data = {
+        name: document.getElementById('channelName').value.trim(),
+        currency: document.getElementById('channelCurrency').value,
+        vat_rate: parseFloat(document.getElementById('channelVatRate').value),
+        show_without_vat: document.getElementById('channelShowWithoutVat').checked
+    };
+
+    const saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Se salvează...';
+
+    try {
+        const url = id ? `/api/price-channels/${id}` : '/api/price-channels';
+        const method = id ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Eroare la salvare');
+        }
+
+        channelModal.hide();
+        showToast(id ? 'Canal actualizat cu succes!' : 'Canal adăugat cu succes!', 'success');
+        loadChannels();
+    } catch (error) {
+        showToast(error.message, 'danger');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Salvează';
+    }
+}
+
+function deleteChannel(id, name) {
+    deleteChannelId = id;
+    document.getElementById('deleteChannelName').textContent = name;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!deleteChannelId) return;
+
+    try {
+        const response = await fetch(`/api/price-channels/${deleteChannelId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Eroare la dezactivare');
+        }
+
+        deleteModal.hide();
+        showToast('Canal dezactivat cu succes!', 'success');
+        loadChannels();
+    } catch (error) {
+        showToast(error.message, 'danger');
+    }
+
+    deleteChannelId = null;
+}
+
+async function activateChannel(id) {
+    try {
+        const response = await fetch(`/api/price-channels/${id}/activate`, {
+            method: 'PUT'
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Eroare la reactivare');
+        }
+
+        showToast('Canal reactivat cu succes!', 'success');
+        loadChannels();
+    } catch (error) {
+        showToast(error.message, 'danger');
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    // Create toast container if not exists
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        container.style.zIndex = '1100';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-bg-${type} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    ${type === 'success' ? '<i class="bi bi-check-circle me-2"></i>' : ''}
+                    ${type === 'danger' ? '<i class="bi bi-exclamation-triangle me-2"></i>' : ''}
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    const toast = new bootstrap.Toast(document.getElementById(toastId));
+    toast.show();
+
+    // Remove from DOM after hidden
+    document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+</script>
+
+<%- include('partials/footer') %>

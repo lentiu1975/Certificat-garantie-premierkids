@@ -136,11 +136,129 @@ function hasUsers() {
     return result.count > 0;
 }
 
+/**
+ * Obține lista tuturor utilizatorilor (fără parole)
+ */
+function getAllUsers() {
+    const stmt = db.prepare(`
+        SELECT id, username, is_admin, created_at, last_login
+        FROM users
+        ORDER BY created_at ASC
+    `);
+    return stmt.all().map(user => ({
+        ...user,
+        isAdmin: user.is_admin === 1
+    }));
+}
+
+/**
+ * Obține un utilizator după ID
+ */
+function getUserById(userId) {
+    const stmt = db.prepare(`
+        SELECT id, username, is_admin, created_at, last_login
+        FROM users
+        WHERE id = ?
+    `);
+    const user = stmt.get(userId);
+    if (user) {
+        user.isAdmin = user.is_admin === 1;
+    }
+    return user;
+}
+
+/**
+ * Actualizează un utilizator (username, isAdmin)
+ */
+async function updateUser(userId, data) {
+    const user = getUserById(userId);
+    if (!user) {
+        throw new Error('Utilizatorul nu a fost găsit');
+    }
+
+    const { username, isAdmin } = data;
+
+    // Verifică dacă username-ul nou există deja
+    if (username && username !== user.username) {
+        const existing = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username, userId);
+        if (existing) {
+            throw new Error('Acest username există deja');
+        }
+    }
+
+    const stmt = db.prepare(`
+        UPDATE users
+        SET username = COALESCE(?, username),
+            is_admin = COALESCE(?, is_admin)
+        WHERE id = ?
+    `);
+
+    stmt.run(
+        username || null,
+        isAdmin !== undefined ? (isAdmin ? 1 : 0) : null,
+        userId
+    );
+
+    return getUserById(userId);
+}
+
+/**
+ * Resetează parola unui utilizator (doar admin)
+ */
+async function resetPassword(userId, newPassword) {
+    const user = getUserById(userId);
+    if (!user) {
+        throw new Error('Utilizatorul nu a fost găsit');
+    }
+
+    if (newPassword.length < constants.SECURITY.MIN_PASSWORD_LENGTH) {
+        throw new Error(`Parola trebuie să aibă minim ${constants.SECURITY.MIN_PASSWORD_LENGTH} caractere`);
+    }
+
+    const newHash = await bcrypt.hash(newPassword, constants.SECURITY.BCRYPT_ROUNDS);
+    const stmt = db.prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+    stmt.run(newHash, userId);
+
+    return { success: true };
+}
+
+/**
+ * Șterge un utilizator
+ */
+function deleteUser(userId, currentUserId) {
+    if (userId === currentUserId) {
+        throw new Error('Nu te poți șterge pe tine însuți');
+    }
+
+    const user = getUserById(userId);
+    if (!user) {
+        throw new Error('Utilizatorul nu a fost găsit');
+    }
+
+    // Verifică să nu fie ultimul admin
+    if (user.isAdmin) {
+        const adminCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE is_admin = 1').get();
+        if (adminCount.count <= 1) {
+            throw new Error('Nu poți șterge ultimul administrator');
+        }
+    }
+
+    const stmt = db.prepare('DELETE FROM users WHERE id = ?');
+    stmt.run(userId);
+
+    return { success: true, message: `Utilizatorul "${user.username}" a fost șters` };
+}
+
 module.exports = {
     requireAuth,
     requireAdmin,
     authenticateUser,
     createUser,
     changePassword,
-    hasUsers
+    hasUsers,
+    getAllUsers,
+    getUserById,
+    updateUser,
+    resetPassword,
+    deleteUser
 };

@@ -150,6 +150,126 @@
             justify-content: center;
             z-index: 9999;
         }
+        .user-menu {
+            position: relative;
+        }
+        .user-menu .dropdown-menu {
+            min-width: 200px;
+        }
+
+        /* Module Cards Styles */
+        .module-launcher {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .module-card {
+            display: flex;
+            align-items: center;
+            padding: 30px;
+            background: white;
+            border-radius: 16px;
+            text-decoration: none;
+            color: inherit;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border-left: 5px solid;
+        }
+        .module-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+            color: inherit;
+        }
+        .module-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            flex-shrink: 0;
+        }
+        .module-info {
+            flex-grow: 1;
+            margin-left: 25px;
+        }
+        .module-info h3 {
+            margin: 0 0 8px 0;
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .module-info p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .module-arrow {
+            font-size: 24px;
+            color: #ccc;
+            transition: transform 0.3s;
+        }
+        .module-card:hover .module-arrow {
+            transform: translateX(5px);
+            color: #666;
+        }
+
+        /* Module Colors */
+        .module-certificates {
+            border-left-color: #2c5aa0;
+        }
+        .module-certificates .module-icon {
+            background: rgba(44, 90, 160, 0.1);
+            color: #2c5aa0;
+        }
+        .module-preturi {
+            border-left-color: #28a745;
+        }
+        .module-preturi .module-icon {
+            background: rgba(40, 167, 69, 0.1);
+            color: #28a745;
+        }
+        .module-crawler {
+            border-left-color: #6f42c1;
+        }
+        .module-crawler .module-icon {
+            background: rgba(111, 66, 193, 0.1);
+            color: #6f42c1;
+        }
+        .module-piese {
+            border-left-color: #fd7e14;
+        }
+        .module-piese .module-icon {
+            background: rgba(253, 126, 20, 0.1);
+            color: #fd7e14;
+        }
+        .module-nomenclator {
+            border-left-color: #17a2b8;
+        }
+        .module-nomenclator .module-icon {
+            background: rgba(23, 162, 184, 0.1);
+            color: #17a2b8;
+        }
+
+        /* Disabled module style */
+        .module-card[onclick*="showComingSoon"] {
+            opacity: 0.7;
+        }
+        .module-card[onclick*="showComingSoon"]:hover {
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -157,15 +277,15 @@
     <nav class="sidebar">
         <div class="logo">
             <h4>PremierKids</h4>
-            <small>Certificate Garanție</small>
+            <small>Management Tools</small>
         </div>
 
         <ul class="sidebar-nav">
             <li><a href="/" class="<%= title === 'Dashboard' ? 'active' : '' %>">
-                <i class="bi bi-speedometer2"></i> Dashboard
+                <i class="bi bi-grid-1x2"></i> Dashboard
             </a></li>
 
-            <li class="nav-section">Certificate</li>
+            <li class="nav-section">Certificate Garanție</li>
             <li><a href="/certificates/auto" class="<%= title.includes('Automat') ? 'active' : '' %>">
                 <i class="bi bi-play-circle"></i> Procesare Automată
             </a></li>
@@ -176,15 +296,38 @@
                 <i class="bi bi-clock-history"></i> Istoric
             </a></li>
 
-            <li class="nav-section">Produse</li>
-            <li><a href="/products" class="<%= title === 'Nomenclator Produse' ? 'active' : '' %>">
+            <li class="nav-section">Prețuri</li>
+            <li><a href="/prices" class="<%= title === 'Prețuri' ? 'active' : '' %>">
+                <i class="bi bi-currency-exchange"></i> Management Prețuri
+            </a></li>
+            <% if (typeof user !== 'undefined' && user.isAdmin) { %>
+            <li><a href="/prices/channels" class="<%= title === 'Canale de Vânzare' ? 'active' : '' %>">
+                <i class="bi bi-shop"></i> Canale Vânzare
+            </a></li>
+            <% } %>
+
+            <li class="nav-section">Crawler</li>
+            <li><a href="#" onclick="showComingSoon('Crawler'); return false;" class="text-muted">
+                <i class="bi bi-robot"></i> În curând
+            </a></li>
+
+            <li class="nav-section">Piese de schimb</li>
+            <li><a href="#" onclick="showComingSoon('Piese de schimb'); return false;" class="text-muted">
+                <i class="bi bi-gear"></i> În curând
+            </a></li>
+
+            <li class="nav-section">Global</li>
+            <li><a href="/nomenclator" class="<%= title === 'Nomenclator Produse' ? 'active' : '' %>">
                 <i class="bi bi-box-seam"></i> Nomenclator
+                <% if (typeof newProductsCount !== 'undefined' && newProductsCount > 0) { %>
+                    <span class="badge badge-new ms-auto"><%= newProductsCount %></span>
+                <% } %>
             </a></li>
 
             <% if (typeof user !== 'undefined' && user.isAdmin) { %>
             <li class="nav-section">Administrare</li>
             <li><a href="/settings" class="<%= title === 'Setări' ? 'active' : '' %>">
-                <i class="bi bi-gear"></i> Setări
+                <i class="bi bi-sliders"></i> Setări
             </a></li>
             <% } %>
         </ul>

@@ -118,6 +118,63 @@ function createTables() {
         )
     `);
 
+    // ============================================
+    // MODUL PREȚURI - Tabele noi
+    // ============================================
+
+    // Tabel canale de vânzare (magazine)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS price_channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            currency TEXT DEFAULT 'RON',
+            vat_rate REAL DEFAULT 19,
+            show_without_vat INTEGER DEFAULT 0,
+            display_order INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Tabel grupuri de produse (nomenclator secundar pentru prețuri)
+    db.run(`
+        CREATE TABLE IF NOT EXISTS product_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_name TEXT NOT NULL,
+            base_price REAL DEFAULT 0,
+            smartbill_codes TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // Tabel prețuri per grup per canal
+    db.run(`
+        CREATE TABLE IF NOT EXISTS group_prices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            channel_id INTEGER NOT NULL,
+            price REAL,
+            price_without_vat REAL,
+            expires_at DATE,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (group_id) REFERENCES product_groups(id) ON DELETE CASCADE,
+            FOREIGN KEY (channel_id) REFERENCES price_channels(id) ON DELETE CASCADE,
+            UNIQUE(group_id, channel_id)
+        )
+    `);
+
+    // Tabel cursuri valutare
+    db.run(`
+        CREATE TABLE IF NOT EXISTS exchange_rates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            currency TEXT NOT NULL,
+            rate REAL NOT NULL,
+            fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // Creăm index-urile doar dacă nu există
     try {
         db.run(`CREATE INDEX IF NOT EXISTS idx_products_code ON products(smartbill_code)`);
@@ -127,6 +184,15 @@ function createTables() {
     } catch (e) { }
     try {
         db.run(`CREATE INDEX IF NOT EXISTS idx_certificates_invoice ON certificates(invoice_number)`);
+    } catch (e) { }
+    try {
+        db.run(`CREATE INDEX IF NOT EXISTS idx_group_prices_group ON group_prices(group_id)`);
+    } catch (e) { }
+    try {
+        db.run(`CREATE INDEX IF NOT EXISTS idx_group_prices_channel ON group_prices(channel_id)`);
+    } catch (e) { }
+    try {
+        db.run(`CREATE INDEX IF NOT EXISTS idx_exchange_rates_currency ON exchange_rates(currency)`);
     } catch (e) { }
 
     // Inițializare configurare implicită
