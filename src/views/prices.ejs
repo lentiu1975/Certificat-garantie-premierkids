@@ -292,9 +292,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterPrice').addEventListener('change', filterTable);
     document.getElementById('csvFile').addEventListener('change', loadCsvFile);
 
-    // Fix pentru input în modal - asigură că focus-ul funcționează corect
+    // Fix pentru input în modal - dezactivăm enforceFocus care blochează editarea
     const editGroupModal = document.getElementById('editGroupModal');
-    editGroupModal.addEventListener('shown.bs.modal', function() {
+
+    // Dezactivăm focus trap-ul Bootstrap care poate bloca inputurile
+    editGroupModal.addEventListener('shown.bs.modal', function(e) {
+        // Forțăm toate inputurile să fie editabile
+        this.querySelectorAll('input:not([readonly])').forEach(input => {
+            input.removeAttribute('disabled');
+        });
         // După ce modalul e complet deschis, dăm focus pe câmpul de nume
         const nameInput = document.getElementById('editGroupName');
         nameInput.focus();
@@ -661,7 +667,8 @@ function openNewGroupModal() {
         });
     });
 
-    const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+    const modalEl = document.getElementById('editGroupModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 
@@ -723,7 +730,8 @@ async function editGroup(groupId) {
         });
     });
 
-    const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+    const modalEl = document.getElementById('editGroupModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 }
 
