@@ -146,8 +146,14 @@
             <div class="modal-body">
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label class="form-label" for="editGroupName">Nume Grup</label>
-                        <input type="text" class="form-control" id="editGroupName" name="editGroupName" autocomplete="off" tabindex="1">
+                        <label class="form-label">Nume Grup</label>
+                        <div class="input-group">
+                            <span class="form-control" id="editGroupNameDisplay" style="background: #fff;"></span>
+                            <button class="btn btn-outline-secondary" type="button" id="editGroupNameBtn" title="Editează numele">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </div>
+                        <input type="hidden" id="editGroupName">
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Preț Bază (RON)</label>
@@ -292,22 +298,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterPrice').addEventListener('change', filterTable);
     document.getElementById('csvFile').addEventListener('change', loadCsvFile);
 
-    // Fix pentru input în modal
-    const editGroupModal = document.getElementById('editGroupModal');
-    const nameInput = document.getElementById('editGroupName');
-
-    // Oprește Bootstrap din a captura tastele în modal
-    editGroupModal.addEventListener('keydown', function(e) {
-        // Permite toate tastele în inputuri
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-            e.stopPropagation();
+    // Buton editare nume grup - folosește prompt() pentru a evita problemele cu Bootstrap modal
+    document.getElementById('editGroupNameBtn').addEventListener('click', function() {
+        const currentName = document.getElementById('editGroupName').value;
+        const newName = prompt('Introdu numele grupului:', currentName);
+        if (newName !== null && newName.trim() !== '') {
+            document.getElementById('editGroupName').value = newName.trim();
+            document.getElementById('editGroupNameDisplay').textContent = newName.trim();
         }
-    }, true);
-
-    // După ce modalul e complet deschis, dăm focus pe câmpul de nume
-    editGroupModal.addEventListener('shown.bs.modal', function(e) {
-        nameInput.focus();
-        nameInput.select();
     });
 
     // Event delegation pentru tabelul de prețuri (click pe rânduri/butoane edit)
@@ -625,6 +623,7 @@ async function importPrices() {
 function openNewGroupModal() {
     currentEditGroupId = null; // null = grup nou
     document.getElementById('editGroupName').value = '';
+    document.getElementById('editGroupNameDisplay').textContent = '(click pe creion pentru a seta)';
     document.getElementById('editBasePrice').value = '';
     document.getElementById('editProductsCount').value = '0';
     document.getElementById('groupProductsList').innerHTML = '<em class="text-muted">Salvează grupul și apoi poți adăuga produse</em>';
@@ -681,6 +680,7 @@ async function editGroup(groupId) {
     if (!group) return;
 
     document.getElementById('editGroupName').value = group.group_name;
+    document.getElementById('editGroupNameDisplay').textContent = group.group_name;
     document.getElementById('editBasePrice').value = group.base_price || '';
     document.getElementById('editProductsCount').value = group.products_count || group.smartbill_codes?.length || 0;
 
